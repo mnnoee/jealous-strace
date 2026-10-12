@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jealous-strace"
+description = "strace log analyzer: syscalls, files, network, SQL timing, N+1, WordPress diagnostics"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "mnnoee", email = "me@mnnoee.ru" }]
+keywords = ["strace", "syscalls", "performance", "wordpress", "nginx", "diagnostics", "logs"]
+dynamic = ["version"]
+
+dependencies = []
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Natural Language :: Russian",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Software Development :: Debuggers",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/mnnoee/jealous-strace"
+Source = "https://github.com/mnnoee/jealous-strace"
+Issues = "https://github.com/mnnoee/jealous-strace/issues"
+Changelog = "https://github.com/mnnoee/jealous-strace/blob/master/CHANGELOG.md"
+
+[project.scripts]
+jealous-strace = "straceparse.cli:main"
+jealous-sanitize = "straceparse.sanitize:main"
+
+# Версия берётся из straceparse.constants.VERSION — единственный источник истины.
+# constants.py читается статически (ast), поэтому версия не требует импорта пакета
+# во время сборки. __init__.py реэкспортирует её как __version__ для пользователей API.
+[tool.setuptools.dynamic]
+version = { attr = "straceparse.constants.VERSION" }
+
+# Плоский layout (без src/): дашборд Jealous Moon запускает
+# strace_parser.py напрямую из корня репозитория, поэтому пакет
+# обязан лежать рядом с ним. sanitize_log — отдельный top-level модуль
+# (тонкая обёртка straceparse/sanitize.py остаётся в пакете).
+[tool.setuptools]
+py-modules = ["sanitize_log"]
+
+[tool.setuptools.packages.find]
+include = ["straceparse*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Тестовые фикстуры — это сырые тексты логов/ответов, верстка там произвольная.
+# E402: тесты вставляют путь к пакету в sys.path перед импортами.
+"tests/*" = ["E501", "E402"]

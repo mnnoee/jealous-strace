@@ -1,0 +1,90 @@
+name: Bug Report
+description: Сообщение о баге или проблеме
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Перед отправкой
+        Пожалуйста, убедитесь что strace-логи и вывод отчёта **санитизированы**
+        (см. [CONTRIBUTING.md](../../CONTRIBUTING.md) и `sanitize_log.py`).
+
+  - type: checkboxes
+    id: sanitization
+    attributes:
+      label: Санитизация данных
+      description: >
+        Вставляемые логи не содержат реальных хостов, IP, путей к файлам
+        с именами компаний, SQL с реальными данными или email-адресов.
+      options:
+        - label: >
+            Я заменил все реальные хосты/IP/домены на `example.com`,
+            `example.org`, `test.local`
+          required: true
+        - label: >
+            Я заменил пути с именами компаний/клиентов на generic-пути
+            (`/path/to/logs/`)
+          required: true
+        - label: >
+            Я убрал содержимое SQL-запросов с реальными данными
+            (кроме стандартных `wp_*` таблиц)
+          required: true
+        - label: >
+            Я прогонял лог через `sanitize_log.py` или ручную проверку
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Описание проблемы
+      description: Кратко опишите что произошло и чего вы ожидали.
+      placeholder: Опишите баг...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги для воспроизведения
+      description: Пошаговое описание.
+      placeholder: |
+        1. Запускаю `python3 strace_parser.py ...`
+        2. Вижу...
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое поведение
+      description: Что должно было произойти?
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Strace-лог / вывод отчёта
+      description: >
+        Вставьте sanitizированный strace-лог или вывод отчёта.
+        Используйте `sanitize_log.py` для автоматической очистки:
+        `python3 sanitize_log.py your.log -o clean.log --report`
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Окружение
+      description: |
+        - ОС и версия:
+        - Python версия:
+        - Версия парсера (straceparse --version):
+      placeholder: |
+        - OS: Ubuntu 22.04
+        - Python: 3.10
+        - straceparse: 1.2
+    validations:
+      required: false

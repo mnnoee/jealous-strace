@@ -1,0 +1,41 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# --- Тесты и инструменты ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# --- Кэш whois/RDAP (генерируется при работе) ---
+.whois_cache.json
+
+# --- Вывод модулей ---
+report/
+report.json
+report_demo/
+
+# --- Локальные рабочие файлы (в репо не входит) ---
+.temp/
+
+# --- Логи и локальные данные ---
+*.log
+logs/
+
+# --- Виртуальное окружение ---
+.venv/
+venv/
+env/
+
+# --- Редакторы и ОС ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
