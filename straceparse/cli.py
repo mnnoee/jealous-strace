@@ -1,6 +1,7 @@
 """Точка входа CLI для пакета straceparse."""
 
 import argparse
+import gzip
 import os
 import sys
 
@@ -11,7 +12,8 @@ from .report import build_report
 
 
 def process_file(path, parser):
-    with open(path, encoding="utf-8", errors="replace") as f:
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8", errors="replace") as f:
         for line in f:
             parser.parse_line(line, path)
 
