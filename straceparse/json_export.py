@@ -57,6 +57,7 @@ def build_json(p):
         "signatures": [],
         "mem": {},
         "wordpress": {},
+        "mtls": {},
         "redirect_chains": [],
         "server_timing": {},
     }
@@ -204,6 +205,24 @@ def build_json(p):
             "theme": p.wp_active_theme,
             "abspath": p.wp_abspath,
             "issues": [{"severity": sev, "message": msg} for sev, msg in wp_issues],
+        }
+
+    # SSL / mTLS (клиентские сертификаты, SNI, ошибки SSL)
+    if p.mtls:
+        data["mtls"] = {
+            "cert_files": [
+                {"path": path, "pids": sorted({pid for pid, _ in evs}),
+                 "count": len(evs), "ts": _ts(evs[0][1])}
+                for path, evs in sorted(p.mtls_cert_files.items(), key=lambda kv: -len(kv[1]))
+            ],
+            "conn_domains": [
+                {"ip": ip, "host": host}
+                for (ip, _port), host in sorted(p.mtls_conn_domains.items(), key=lambda kv: str(kv[0]))
+            ],
+            "ssl_errors": [
+                {"pid": pid, "ts": _ts(ts), "snippet": txt}
+                for pid, ts, txt, _fname in p.mtls_ssl_errors[:30]
+            ],
         }
 
     return data

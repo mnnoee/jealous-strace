@@ -360,9 +360,9 @@ class StraceParser:
                     self.files[path]["open"] += 1
                 if errno == "ENOENT":
                     self.open_missing[path] += 1
-            # SSL/mTLS: клиентские сертификаты и ключи
-            if self.mtls and re.search(r"\.(pem|crt|cer|key|p12|pfx)$", path, re.I):
-                mtls.record_cert_open(self, pid, ts, path)
+                # SSL/mTLS: клиентские сертификаты и ключи
+                if self.mtls and re.search(r"\.(pem|crt|cer|key|p12|pfx)$", path, re.I):
+                    mtls.record_cert_open(self, pid, ts, path)
 
         elif name in ("stat", "lstat", "newfstatat", "statx", "access", "faccessat"):
             path_m = re.search(r'"([^"]*)"', args)
