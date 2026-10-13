@@ -14,8 +14,10 @@
 
 ## Установка
 
+Пока не на PyPI (публикация планируется). Ставится напрямую с GitHub:
+
 ```bash
-pip install jealous-strace
+pip install git+https://github.com/mnnoee/jealous-strace.git
 ```
 
 После установки доступны команды `jealous-strace` и `jealous-sanitize`.

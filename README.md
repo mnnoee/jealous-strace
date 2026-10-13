@@ -27,8 +27,10 @@ Universal strace log parser with a human-readable report and CSV export.
 
 ## Install
 
+Not on PyPI yet (planned). Install straight from GitHub:
+
 ```bash
-pip install jealous-strace
+pip install git+https://github.com/mnnoee/jealous-strace.git
 ```
 
 Both `jealous-strace` and `jealous-sanitize` are available after install.
