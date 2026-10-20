@@ -143,8 +143,8 @@ def build_report(p):
                 dur = (r["end"] - r["start"]).total_seconds()
             loc = f"  loc={r.get('location')}" if r.get("status") in (301, 302, 303, 307, 308) else ""
             sch = f"  s={r.get('scheme')}" if r.get("scheme") else ""
-            w(f"  {r.get('method', '?'):<6} {r.get('uri', '?'):<60} {r.get('host', '?'):<25} "
-              f"status={r.get('status', '?')}  {dur:.3f}s{loc}{sch}")
+            w(f"  {(r.get('method') or '?'):<6} {(r.get('uri') or '?'):<60} {(r.get('host') or '?'):<25} "
+              f"status={r.get('status') or '?'}  {dur:.3f}s{loc}{sch}")
         problems_http = [r for r in http if r.get("status") and r["status"] >= 400]
         w(f"\nЗапросы с ошибками (4xx/5xx): {len(problems_http)}")
         for r in problems_http[:40]:

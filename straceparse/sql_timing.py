@@ -128,7 +128,9 @@ def report_section(p, w):
         for d, q in timed_queries(p)[:15]:
             uri = uri_for_query(p, q)
             uri_s = f"  uri={uri}" if uri else ""
-            w(f"  {d * 1000:>9.1f}мс pid={q.get('pid')} {q.get('sql', '')[:90]}{uri_s}")
+            # payload из php-fpm (FastCGI) содержит переводы строк — схлопываем в одну строку
+            one_line = ' '.join(q.get('sql', '').split())[:90]
+            w(f"  {d * 1000:>9.1f}мс pid={q.get('pid')} {one_line}{uri_s}")
 
     if n1:
         w(f"\n[!] ПОВТОРЯЮЩИЕСЯ ЗАПРОСЫ (N+1) — один запрос в цикле ({len(n1)} кандидатов):")
