@@ -43,12 +43,53 @@ RE_DOMAIN = re.compile(
     r'site|store|tech|dev|app|cloud|me)\b'
 )
 
+# Домены, приклеенные к имени FCGI-параметра (упакованный формат без разделителя
+# после ключа) — \b перед доменом не срабатывает, маскируем по ключу
+RE_FCGI_HOST = re.compile(
+    r'((?:HTTP_HOST|HTTP_X_FORWARDED_HOST|SERVER_NAME|Host))'
+    r'((?:[a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,})'
+)
+
+# IP, приклеенный к имени FCGI-параметра (значение без разделителя после ключа)
+RE_FCGI_IP = re.compile(
+    r'((?:REMOTE_ADDR|SERVER_ADDR|HTTP_X_REAL_IP|HTTP_X_FORWARDED_FOR))'
+    r'((?:\d{1,3}\.){3}\d{1,3})'
+)
+
+# Учётные данные в исходниках (PHP/SQL в payload): $db_pass = '...'; и т.п.
+# (секреты и идентификаторы: user/pass/login + имя БД; хост — не кред)
+RE_CREDS_ASSIGN = re.compile(
+    r'(\$?_?(?:db|DB)_(?:pass|pwd|password|user|login|name)\s*=\s*)'
+    r'\'[^\']*\''
+)
+
+# Логин в MySQL handshake: имя пользователя идёт непосредственно перед
+# \0<auth-plugin> (клиентский response всегда заканчивается именем плагина)
+# или перед \0 + 20-байтной солью (старый протокол, соль = printable-байты).
+# Имя — любое, якоримся на плагин/соль, не на NUL-префикс.
+RE_MYSQL_USER = re.compile(
+    # A: [хвост соли-escape] + имя + \0 + auth-plugin (имя ≥6 симв., чтобы не
+    # цеплять обрывки соли; escape-префикс поглощается и сохраняется)
+    r'((?:\\[0-7]{1,3})?)'
+    r'([a-zA-Z0-9_$.\-]{6,64})'
+    r'\\0(?=caching_sha2_password|mysql_native_password'
+    r'|mysql_clear_password|sha256_password)'
+    r'|((?:\\0){8,})((?:\\[0-7]{1,3})?)([a-zA-Z0-9_$.\-]{6,64})\\0(?=[ -~\\])'
+)
+
+# ПРИМЕЧАНИЕ: домены в DNS wire-формате маскируем ТОЛЬКО в строках DNS-трафика
+# (сокеты на порт 53): бинарные escape-последовательности strace в других payload
+# неотличимы от DNS-меток, общий шаблон даёт ложные срабатывания. См. sanitize_line.
+DNS_WIRE_RE = re.compile(r'(?:\\[0-9]{1,3}[a-zA-Z0-9\-]+){2,}(?:\\300\\[0-9]{1,3})?')
+# NDA: wire-домены заменяем на обезличенный mail.domain.tld (длины меток 3+6+3)
+DNS_WIRE_FAKE = r'\3mail\6domain\3tld'
+
 # Пути к файлам: /home/user/..., /var/www/..., /srv/..., /opt/...
 # Не трогаем /usr, /etc, /proc, /tmp, /sys
 RE_SENSITIVE_PATH = re.compile(
     r'('
     r'/home/[^/\s"\']+'                      # /home/user...
-    r'|/var/www/[^/\s"\']+'                  # /var/www/site...
+    r'|/var/www(?:-data)?/[^/\s"\']+'        # /var/www/site..., /var/www-data/...
     r'|/srv/[^/\s"\']+'                      # /srv/...
     r'|/opt/[^/\s"\']+'                      # /opt/...
     r')'
@@ -75,7 +116,7 @@ class Sanitizer:
         self.counters = {
             'ipv4': 0, 'ipv6': 0, 'email': 0, 'domain': 0,
             'path': 0, 'sql_value': 0, 'sql_in': 0, 'sql_number': 0,
-            'sql_limit': 0,
+            'sql_limit': 0, 'dns_wire': 0, 'cred': 0,
         }
         self.mappings = OrderedDict()
         self.reverse = {}
@@ -100,7 +141,22 @@ class Sanitizer:
             header = ''
             rest = line
 
-        # 1. IPv4
+        # 1. DNS-пакеты (порт 53): маскируем имена в wire-формате до прочих правил.
+        # Замена анонимная (без записи оригинала в mappings/report — NDA).
+        # Линия DNS: порт 53 в адресе, либо sendmmsg/recvfrom/resumed (UDP-сокет,
+        # в resumed-строках порт не печатается)
+        is_dns_line = ':53]' in rest or re.match(
+            r'.{0,60}\b(?:sendmmsg|recvfrom|recvmsg|resumed)\b', rest)
+        if is_dns_line:
+            n_dns = len(DNS_WIRE_RE.findall(rest))
+            if n_dns:
+                self.counters['dns_wire'] += n_dns
+                rest = DNS_WIRE_RE.sub(lambda m: DNS_WIRE_FAKE, rest)
+        # 1а. IP, приклеенный к FCGI-ключам (REMOTE_ADDR<ip>) — до общего прохода IPv4
+        rest = RE_FCGI_IP.sub(
+            lambda m: m.group(1) + self._next('ipv4', m.group(2)), rest)
+
+        # 1б. IPv4
         rest = RE_IPV4.sub(lambda m: self._next('ipv4', m.group()), rest)
 
         # 2. IPv6 — полные 8-сегментные или с ::
@@ -109,7 +165,13 @@ class Sanitizer:
         # 3. Email
         rest = RE_EMAIL.sub(lambda m: self._next('email', m.group()), rest)
 
-        # 4. Домены
+        # 4a. Домены, приклеенные к FCGI-параметрам (до общего прохода доменов)
+        rest = RE_FCGI_HOST.sub(
+            lambda m: m.group(1) + self._next('domain', m.group(2)), rest)
+
+        # 4b. Домены (DNS wire-формат маскируется отдельно выше, только для :53])
+
+        # 4в. Домены
         def mask_domain(m):
             d = m.group()
             if d in ('example.com', 'example.org', 'localhost',
@@ -143,6 +205,19 @@ class Sanitizer:
             rest = RE_SQL_LIMIT.sub(
                 lambda m: self._next('sql_limit', m.group()), rest
             )
+
+        # 6а. Учётные данные в исходниках ($db_pass = '...'; и т.п.) — независимо от SQL
+        rest = RE_CREDS_ASSIGN.sub(
+            lambda m: m.group(1) + self._next('cred', "'<CRED>'"), rest)
+        # 6б. Логин в MySQL handshake
+        # A: группы (1=хвост соли, 2=имя); B: группы (3=NUL-флаги, 4=хвост соли, 5=имя)
+        def _mask_mysql_user(m):
+            if m.group(2) is not None:
+                prefix, name = m.group(1), m.group(2)
+            else:
+                prefix, name = m.group(3) + (m.group(4) or ''), m.group(5)
+            return prefix + self._next('cred', name) + m.group()[len(prefix) + len(name):]
+        rest = RE_MYSQL_USER.sub(_mask_mysql_user, rest)
 
         return header + rest
 
