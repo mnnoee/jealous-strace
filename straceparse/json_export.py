@@ -5,6 +5,11 @@ import os
 from collections import Counter
 
 from . import load, wp
+
+try:
+    from . import phpmail
+except Exception:  # pragma: no cover
+    phpmail = None
 from .parse_utils import normalize_sql
 from .redirects import build_chains
 from .signatures import detect as detect_signatures
@@ -58,6 +63,7 @@ def build_json(p):
         "mem": {},
         "wordpress": {},
         "mtls": {},
+        "mail": {},
         "redirect_chains": [],
         "server_timing": {},
     }
@@ -224,6 +230,12 @@ def build_json(p):
                 for pid, ts, txt, _fname in p.mtls_ssl_errors[:30]
             ],
         }
+
+    # PHP mail()
+    if phpmail is not None:
+        data["mail"] = phpmail.build_json(p)
+    else:
+        data["mail"] = {"count": 0, "sends": []}
 
     return data
 

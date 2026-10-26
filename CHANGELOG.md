@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-26
+
+### Added
+- Детекция отправки почты через PHP `mail()` (`straceparse/phpmail.py`,
+  флаг `--mail-body`): сбор из PHP `mail.log`, `pipe2`/`dup2`/`execve sendmail`
+  и `write` в pipe (полное RFC822-письмо), `wait4` (код завершения sendmail).
+- Поля: получатель, `From`, envelope (`-f`), тема, Reply-To, Content-Type,
+  X-Mailer, скрипт:строка, команда, статус доставки, длительность, размер,
+  тело (при `--mail-body`).
+- Отчёт: секция «PHP mail() / ОТПРАВКА ПОЧТЫ» (краткая таблица по умолчанию,
+  полные детали при `--mail-body`), CSV `mail.csv`, JSON `mail`.
+- Сигнатуры: неудачная доставка, несовпадение отправителя, массовая отправка.
+
+### Notes
+- Данные для анализа снимались только командой:
+  `strace -p #PIDS -f -s 65535 -v -yy -ttt -T -i -X verbose -o ~/strace.log`
+
+### Changed
+- Анализ почты включён по умолчанию.
+
 ## [1.3.0] — 2026-10-12
 
 ### Added
@@ -52,6 +72,7 @@
 
 См. историю git.
 
-[Unreleased]: https://github.com/mnnoee/jealous-strace/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/mnnoee/jealous-strace/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/mnnoee/jealous-strace/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/mnnoee/jealous-strace/compare/v1.2...v1.3.0
 [1.2]: https://github.com/mnnoee/jealous-strace/releases/tag/v1.2

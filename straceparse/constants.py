@@ -2,7 +2,7 @@
 
 import re
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 OCTAL_RE = re.compile(r"\\[0-7]{1,3}")
 HEX_RE = re.compile(r"\\x[0-9a-fA-F]{2}")

@@ -33,6 +33,7 @@ def main():
     ap.add_argument("--wordpress", action="store_true", help="включить анализ для WordPress (компоненты, autoload bloat, тяжёлые плагины)")
     ap.add_argument("--mtls", action="store_true", help="включить анализ SSL/mTLS (клиентские сертификаты, ошибки SSL-сертификата)")
     ap.add_argument("--all", action="store_true", help="включить все модули (CMS и прочее)")
+    ap.add_argument("--mail-body", action="store_true", help="включать тело письма и подробности в отчёт/экспорт (приватные данные)")
     args = ap.parse_args()
 
     files = []
@@ -49,7 +50,8 @@ def main():
             print(f"Предупреждение: не найден путь {path_arg}", file=sys.stderr)
 
     parser = StraceParser(threshold=args.threshold, slow_top=args.top,
-                          wordpress=args.wordpress or args.all, mtls=args.mtls or args.all)
+                          wordpress=args.wordpress or args.all, mtls=args.mtls or args.all,
+                          mail=True, mail_body=args.mail_body)
 
     for fp in sorted(files):
         print(f"Обработка: {fp} ...", file=sys.stderr)

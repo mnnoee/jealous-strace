@@ -5,7 +5,7 @@
 [![CI](https://github.com/mnnoee/jealous-strace/actions/workflows/ci.yml/badge.svg)](https://github.com/mnnoee/jealous-strace/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.3.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.4.0-green.svg)](CHANGELOG.md)
 
 > Часть набора инструментов [Jealous Moon](https://github.com/mnnoee) —
 > офлайн-диагностики серверов и доменов.

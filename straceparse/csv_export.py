@@ -5,6 +5,11 @@ import os
 
 from . import constants as ct
 
+try:
+    from . import phpmail
+except Exception:  # pragma: no cover
+    phpmail = None
+
 
 def write_csvs(p, outdir):
     os.makedirs(outdir, exist_ok=True)
@@ -98,6 +103,10 @@ def write_csvs(p, outdir):
         writer.writerow(["pid", "ts", "syscall", "file"])
         for pid, name, ts, fname, _ in p.unfinished_open:
             writer.writerow([pid, ts.strftime("%H:%M:%S") if ts else "", name, fname])
+
+    # mail.csv (PHP mail)
+    if phpmail is not None:
+        phpmail.write_csv(p, outdir)
 
     # access.csv
     if p.access_entries:

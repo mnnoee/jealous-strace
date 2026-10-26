@@ -3,7 +3,7 @@
 from collections import Counter, defaultdict
 
 from . import constants as ct
-from . import load, mem, mtls, redirects, servertiming, signatures, sql_timing, wp
+from . import load, mem, mtls, phpmail, redirects, servertiming, signatures, sql_timing, wp
 from .parse_utils import fmt_bytes, normalize_sql
 from .wp import classify_wp_component
 
@@ -388,6 +388,10 @@ def build_report(p):
 
     # --- тяжёлые плагины ---
     wp.report_heavy_plugins(p, w)
+
+    # --- PHP mail() ---
+    if getattr(p, "mail", False) or getattr(p, "mail_sends", None):
+        phpmail.report_section(p, w)
 
     # --- атрибуция нагрузки ---
     load.report_section(p, w)

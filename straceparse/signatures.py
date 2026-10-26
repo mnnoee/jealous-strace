@@ -6,6 +6,11 @@
 
 from collections import Counter
 
+try:
+    from . import phpmail
+except Exception:  # pragma: no cover
+    phpmail = None
+
 from .redirects import REDIRECT_STATUSES, build_chains
 
 
@@ -132,4 +137,6 @@ def detect(p):
     out += detect_scheme_switch(p)
     out += detect_secure_cookie_over_http(p)
     out += detect_enoent_storm(p)
+    if phpmail is not None and getattr(p, "mail_body", False):
+        out += phpmail.detect(p)
     return out

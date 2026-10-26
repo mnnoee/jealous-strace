@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 
 from . import constants as ct
-from . import mem, mtls, wp
+from . import mem, mtls, phpmail, wp
 from .parse_utils import (
     extract_location,
     extract_server_timing,
@@ -43,11 +43,17 @@ class Syscall:
 
 
 class StraceParser:
-    def __init__(self, threshold=0.1, slow_top=50, wordpress=False, mtls=False):
+    def __init__(self, threshold=0.1, slow_top=50, wordpress=False, mtls=False, mail=False, mail_body=False):
         self.threshold = threshold
         self.slow_top = slow_top
         self.wordpress = wordpress
         self.mtls = mtls
+        self.mail = mail
+        self.mail_body = mail_body
+        self.mail_sends = []
+        self._pipe_creators = {}
+        self._pipe_child = {}
+        self._child_pipe = {}
         self.syscalls = Counter()
         self.syscall_err_count = Counter()
         self.syscall_time = defaultdict(list)
@@ -324,6 +330,16 @@ class StraceParser:
             self.slow_calls.append((pid, ts, name, args[:200], dur, filename))
 
         self._track_fd_and_special(pid, ts, name, args, ret, errno, dur, unfinished, resumed, filename)
+
+        if self.mail:
+            if name == "execve":
+                phpmail.maybe_record_execve(self, pid, ts, args, filename)
+            elif name in ("pipe", "pipe2"):
+                phpmail.maybe_record_pipe(self, pid, ts, args, filename)
+            elif name == "dup2":
+                phpmail.maybe_record_dup2(self, pid, ts, args, filename)
+            elif name == "wait4":
+                phpmail.maybe_record_wait4(self, pid, ts, args, ret, filename)
 
         if unfinished:
             fd = self._get_fd_arg(args) if self._has_fd(name) else None
@@ -635,6 +651,8 @@ class StraceParser:
             self.files[path]["write"] += 1
             if nbytes:
                 self.file_bytes[path]["write"] += nbytes
+            if self.mail and "mail.log" in path and data:
+                phpmail.maybe_record_maillog(self, pid, ts, data, path, filename)
         elif res and res["type"] == "sock" and data:
             key = (pid, fdnum)
             # SSL/mTLS: SNI hostname в TLS ClientHello через write()
@@ -670,6 +688,9 @@ class StraceParser:
                 if self.mtls and mtls.is_ssl_error(txt):
                     mtls.record_ssl_error(self, pid, ts, txt, filename)
                 mem.check_oom(self, ts, txt_clean)
+        else:
+            if self.mail and data:
+                phpmail.maybe_record_pipe_email(self, pid, ts, fdnum, data, filename)
 
     def _handle_send(self, pid, ts, name, args, ret, errno, dur, filename):
         fdnum = self._get_fd_arg(args, pid, name)
