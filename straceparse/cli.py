@@ -11,11 +11,22 @@ from .core import StraceParser
 from .report import build_report
 
 
-def process_file(path, parser):
+def process_file(path, parser, max_lines=0, sample_every=1, progress=False):
     opener = gzip.open if path.endswith(".gz") else open
+    processed = 0
     with opener(path, "rt", encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for i, line in enumerate(f, 1):
+            if max_lines and i > max_lines:
+                break
+            if sample_every > 1 and (i % sample_every != 0):
+                parser.lines_total += 1
+                continue
             parser.parse_line(line, path)
+            processed += 1
+            if progress and processed % 100000 == 0:
+                print(f"  ... {processed} строк обработано ({path})", file=sys.stderr)
+    if progress:
+        print(f"  ... готово: {processed} строк обработано ({path})", file=sys.stderr)
 
 
 def main():
@@ -33,6 +44,11 @@ def main():
     ap.add_argument("--wordpress", action="store_true", help="включить анализ для WordPress (компоненты, autoload bloat, тяжёлые плагины)")
     ap.add_argument("--mtls", action="store_true", help="включить анализ SSL/mTLS (клиентские сертификаты, ошибки SSL-сертификата)")
     ap.add_argument("--all", action="store_true", help="включить все модули (CMS и прочее)")
+    ap.add_argument("--progress", action="store_true", help="показывать прогресс обработки (для больших логов)")
+    ap.add_argument("--max-lines", type=int, default=0, metavar="N",
+                    help="обработать не более N строк файла (0 = все)")
+    ap.add_argument("--sample-every", type=int, default=1, metavar="N",
+                    help="обрабатывать каждую N-ю строку (экономия RAM/времени на гигантских логах)")
     ap.add_argument("--mail-body", action="store_true", help="включать тело письма и подробности в отчёт/экспорт (приватные данные)")
     args = ap.parse_args()
 
@@ -55,7 +71,8 @@ def main():
 
     for fp in sorted(files):
         print(f"Обработка: {fp} ...", file=sys.stderr)
-        process_file(fp, parser)
+        process_file(fp, parser, max_lines=args.max_lines,
+                     sample_every=args.sample_every, progress=args.progress)
 
     parser.finalize()
     report = build_report(parser)
