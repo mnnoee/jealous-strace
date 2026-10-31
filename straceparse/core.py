@@ -6,7 +6,7 @@ Feature-модули (wp, mem, mtls) подключаются через фун�
 
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from . import constants as ct
 from . import mem, mtls, phpmail, wp
@@ -407,8 +407,12 @@ class StraceParser:
                 except (ValueError, TypeError):
                     return
                 fd_tab[fdn] = {"type": "sock", "endpoint": None, "kind": "fcgi"}
+                if isinstance(ts, datetime) and dur:
+                    start_ts = ts + timedelta(seconds=dur)
+                else:
+                    start_ts = ts
                 self.current_http_by_pid_fd[(pid, fdn)] = {
-                    "pid": pid, "fd": fdn, "start": ts,
+                    "pid": pid, "fd": fdn, "start": start_ts,
                     "host": None, "method": None, "uri": None,
                     "referer": None, "ua": None, "query": None,
                     "scheme": None, "status": None, "location": None,

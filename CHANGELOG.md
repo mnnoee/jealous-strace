@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-10-31
+
+### Fixed
+- Корректное отображение времени в HTTP-запросах: момент старта запроса
+  берётся как возврат `accept()`, поэтому длительность не включает ожидание
+  следующего соединения.
+
 ## [1.4.0] — 2026-10-26
 
 ### Added
@@ -72,7 +79,8 @@
 
 См. историю git.
 
-[Unreleased]: https://github.com/mnnoee/jealous-strace/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/mnnoee/jealous-strace/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/mnnoee/jealous-strace/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/mnnoee/jealous-strace/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/mnnoee/jealous-strace/compare/v1.2...v1.3.0
 [1.2]: https://github.com/mnnoee/jealous-strace/releases/tag/v1.2

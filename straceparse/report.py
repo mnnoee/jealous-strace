@@ -63,7 +63,7 @@ def build_report(p):
                 w("  Критических проблем не обнаружено.")
 
     # ---- Ключевые проблемы ----
-    w("\n--- КЛЮЧЕВЫЕ ПРОБЛЕМЫ (сводка) ---")
+    w("\n--- сводка возможных проблем ---")
     problems = []
     http_err = [r for r in p.http_requests if r.get("status") and r["status"] >= 400]
     if http_err:
@@ -136,6 +136,7 @@ def build_report(p):
             w("Статусы ответов:")
             for s, c in sorted(status_counter.items(), key=lambda x: -x[1]):
                 w(f"  {s}: {c}")
+        w("")
         w("Запросы (метод uri host длительность):")
         for r in sorted(http, key=lambda x: (x.get("start") or 0)):
             dur = 0.0
@@ -154,7 +155,7 @@ def build_report(p):
         # медленные запросы
         slow_http_list = slow_http(p)
         if slow_http_list:
-            w("\nСамые медленные запросы (по времени между accept и ответом):")
+            w("\nСамые медленные запросы (по времени обработки):")
             for r in slow_http_list[:10]:
                 dur = (r["end"] - r["start"]).total_seconds() if r["end"] > r["start"] else 0
                 w(f"  {dur:.3f}s {r.get('method', '?')} {r.get('uri')} status={r.get('status')} host={r.get('host')}")

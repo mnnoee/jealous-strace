@@ -175,13 +175,14 @@ def report_section(p, w, top_pid=10, top_requests=8):
                    f"{r['dur']}с | {r['count']} | {r['rate']} | {r['cpu']}с | " \
                    f"{r['kernel']}с | {r['top'] or '-'}"
             w(line)
-        # компоненты самого нагрузочного запроса
-        top = reqs[0]
-        if top["components"]:
-            w("Компоненты WP в самом `CPU-тяжёлом` запросе "
-              f"{top['method']} {top['uri']} (по числу syscall):")
-            for comp, n in sorted(top["components"].items(), key=lambda x: x[1], reverse=True)[:8]:
-                w(f"    {comp}: {n}")
+        # компоненты самого нагрузочного запроса (только при --wordpress)
+        if getattr(p, "wordpress", False):
+            top = reqs[0]
+            if top["components"]:
+                w("Компоненты WP в самом `CPU-тяжёлом` запросе "
+                  f"{top['method']} {top['uri']} (по числу syscall):")
+                for comp, n in sorted(top["components"].items(), key=lambda x: x[1], reverse=True)[:8]:
+                    w(f"    {comp}: {n}")
     peaks = peak_seconds(p, top=5)
     if peaks:
         w("Пиковые секунды (максимум syscall/сек):")

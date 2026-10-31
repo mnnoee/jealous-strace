@@ -146,27 +146,45 @@ def parse_fcgi_params(data):
     return params
 
 
-def extract_status(payload):
-    """Ищет HTTP-статус в FCGI/HTTP ответе: 'Status: 302' или 'HTTP/1.1 302'."""
+def _header_part(payload):
+    """Вернуть только заголовочную часть ответа (до первой пустой строки),
+    чтобы не ловить 'HTTP/1.1 301' внутри HTML-тела."""
     txt = payload.decode("utf-8", "replace")
-    m = re.search(r"Status:\s*(\d{3})", txt)
+    idx = txt.find("\r\n\r\n")
+    if idx != -1:
+        return txt[:idx]
+    idx = txt.find("\n\n")
+    if idx != -1:
+        return txt[:idx]
+    return txt
+
+
+def extract_status(payload):
+    """Ищет HTTP-статус в FCGI/HTTP ответе: 'Status: 302' или 'HTTP/1.1 302'.
+
+    Ищем только в заголовках, иначе 'HTTP/1.1 301' внутри HTML-тела
+    даёт ложные срабатывания.
+    """
+    txt = _header_part(payload)
+    m = re.search(r"Status:\s*(\d{3})", txt, re.IGNORECASE)
     if m:
         return int(m.group(1))
-    m = re.search(r"HTTP/\d+\.\d+\s+(\d{3})", txt)
+    m = re.search(r"HTTP/\d+\.\d+\s+(\d{3})", txt, re.IGNORECASE)
     if m:
         return int(m.group(1))
     return None
 
 
 def extract_location(payload):
-    txt = payload.decode("utf-8", "replace")
-    m = re.search(r"Location:\s*(\S+)", txt)
+    txt = _header_part(payload)
+    m = re.search(r"Location:\s*(\S+)", txt, re.IGNORECASE)
     return m.group(1) if m else None
 
 
 def looks_like_http_response(payload):
-    txt = payload.decode("utf-8", "replace")
-    return bool(re.search(r"Status:\s*\d{3}", txt) or re.search(r"HTTP/\d+\.\d+\s+\d{3}", txt))
+    txt = _header_part(payload)
+    return bool(re.search(r"Status:\s*\d{3}", txt, re.IGNORECASE)
+                or re.search(r"HTTP/\d+\.\d+\s+\d{3}", txt, re.IGNORECASE))
 
 
 def extract_server_timing(payload):
