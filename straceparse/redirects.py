@@ -7,6 +7,8 @@ method/uri/host/status/location/referer/start/end). Строит из отдел
 
 from urllib.parse import urlsplit
 
+from .i18n import t
+
 # Статусы, которые считаются редиректами с Location.
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
@@ -36,8 +38,8 @@ def _normalize_uri(uri):
 def build_chains(p):
     """Строит цепочки редиректов из p.http_requests.
 
-    Возвращает список цепочек. Каждая цепочка — список запросов по порядку,
-    где редирект i ведёт на запрос i+1. Звенья — это исходные dict'ы из
+    Возвращает список цепочек. Каждая цепочка - список запросов по порядку,
+    где редирект i ведёт на запрос i+1. Звенья - это исходные dict'ы из
     p.http_requests (обогащённые ключом "t" = время начала).
     """
     reqs = sorted(p.http_requests, key=lambda r: (r.get("start") is None, r.get("start") or 0))
@@ -77,7 +79,7 @@ def build_chains(p):
             used[nxt_index] = True
             chain.append(usable[nxt_index])
             cur = usable[nxt_index]
-        # оставить только "настоящие" цепочки — минимум один переход
+        # оставить только "настоящие" цепочки - минимум один переход
         if len(chain) >= 2:
             chains.append(chain)
 
@@ -99,24 +101,24 @@ def report_chains(p, w):
     if not redirects:
         return
 
-    w("\n--- РЕДИРЕКТЫ (HTTP 3xx) ---")
-    w(f"Всего редиректов (3xx с Location): {len(redirects)}")
+    w(t("red.title"))
+    w(t("red.total", n=len(redirects)))
 
     chains = build_chains(p)
 
     # 1) цепочки
     real_chains = [c for c in chains if len(c) >= 2]
     if real_chains:
-        w(f"\nЦепочки перенаправлений ({len(real_chains)}):")
+        w(t("red.chains", n=len(real_chains)))
         for c in real_chains:
             w("  " + " -> ".join(_fmt_method_uri(r) for r in c))
             w("    " + " -> ".join(_fmt_location(r) for r in c[:-1] if r.get("location")))
     else:
-        w("\nСвязанных цепочек (переход редиректа на следующий запрос) не найдено —")
-        w("отдельные редиректы перечислены ниже.")
+        w(t("red.no_chains"))
+        w(t("red.cont"))
 
     # 2) плоский список всех редиректов по времени
-    w("\nВсе редиректы (по порядку):")
+    w(t("red.all"))
     for r in sorted(redirects, key=lambda x: (x.get("start") is None, x.get("start") or 0)):
         dur = ""
         if r.get("start") and r.get("end") and r["end"] > r["start"]:

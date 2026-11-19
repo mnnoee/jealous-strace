@@ -3,14 +3,14 @@
 [![CI](https://github.com/mnnoee/jealous-strace/actions/workflows/ci.yml/badge.svg)](https://github.com/mnnoee/jealous-strace/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)](CHANGELOG.md)
 
-> Part of the [Jealous Moon](https://github.com/mnnoee) toolkit — offline
+> Part of the [Jealous Moon](https://github.com/mnnoee) toolkit - offline
 > server and domain diagnostics.
 
 Universal strace log parser with a human-readable report and CSV export.
 
-> [README на русском](README.ru.md) — полная документация.
+> [README на русском](README.ru.md) - полная документация.
 
 ## Features
 
@@ -22,7 +22,9 @@ Universal strace log parser with a human-readable report and CSV export.
 - SQL timing (p50/p95/p99) and N+1 detection
 - WordPress phases from Server-Timing, autoload bloat, heavy plugins
 - Load attribution: who consumes resources (PID / URI / plugins)
+- PHP `mail()` and SMTP analysis (recipient, subject, status, TLS/SNI, body with `--mail-body`)
 - JSON export (`--json [PATH]`)
+- Russian and English interface (`--lang`)
 - Fully offline: works on log files only
 
 ## Install
@@ -54,8 +56,23 @@ Analyze it:
 jealous-strace ~/strace.log                   # report + CSV
 jealous-strace ~/strace.log --wordpress       # WordPress analysis
 jealous-strace ~/strace.log --json out.json   # machine-readable report
+jealous-strace ~/strace.log --mail-body       # include message bodies
 jealous-strace --help                         # all options
 ```
+
+## PHP mail() analysis
+
+The parser detects mail sent through PHP `mail()` and reports the recipient,
+`From`, envelope, subject, sendmail exit status, duration and size. Pass
+`--mail-body` to include the message body and full details (private data),
+and to enable SMTP analysis (ports 25/465/587, PHPMailer and others).
+SMTP sessions show the server, SNI, TLS and result. For plaintext SMTP the
+`MAIL FROM` / `RCPT TO` / `DATA` commands and response codes are parsed; on
+465 and after STARTTLS they are encrypted and not visible.
+
+## Interface language
+
+The output language follows the locale or can be forced with `--lang {auto,ru,en}`.
 
 ## Example log
 
@@ -68,7 +85,7 @@ jealous-strace --help                         # all options
 
 ## Ideas & suggestions
 
-Have an idea for the project? Open an issue — suggestions for new report
+Have an idea for the project? Open an issue - suggestions for new report
 sections, signature detections, export formats and integrations are welcome.
 
 ## Contributing

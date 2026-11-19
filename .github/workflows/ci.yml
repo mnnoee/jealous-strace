@@ -8,7 +8,10 @@ on:
 jobs:
   test:
     name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      LANG: ru_RU.UTF-8
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:

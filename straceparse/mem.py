@@ -1,8 +1,9 @@
-"""RAM/OOM анализ: mmap-трекинг, PHP Out-of-memory, секция отчёта."""
+"""память"""
 
 import re
 from collections import Counter
 
+from .i18n import t
 from .parse_utils import fmt_bytes
 from .wp import classify_wp_component
 
@@ -34,7 +35,7 @@ def report_section(p, w):
     has_mem_data = p.oom_detected or p.mmap_count > 0 or p.php_fatal_errors
     if not has_mem_data:
         return
-    w("\n--- RAM / OOM АНАЛИЗ ---")
+    w(t("mem.title"))
     if p.oom_detected:
         w(f"\n  Fatal: {p.oom_message}")
 
@@ -43,7 +44,7 @@ def report_section(p, w):
         page = "unknown"
         if p.http_requests:
             uri = p.http_requests[0].get("uri") or ""
-            # если URI — это полный путь к файлу, берём только имя
+            # если URI - это полный путь к файлу, берём только имя
             if uri and ".php" in uri:
                 # /var/www/.../wp-admin/post.php -> wp-admin/post.php
                 m = re.search(r"/(wp-admin/\w+\.php)", uri)
@@ -68,7 +69,7 @@ def report_section(p, w):
                     if "wp-cron.php" in path:
                         page = "wp-cron.php"
                         break
-        w(f"  Страница: {page}")
+        w(t("mem.page", page=page))
 
         # компоненты, загруженные до краша
         if p.files:
@@ -76,26 +77,26 @@ def report_section(p, w):
             for path in p.files:
                 comp = classify_wp_component(path)
                 comp_count[comp] += 1
-            w(f"  Загружено файлов: {len(p.files)} уникальных")
-            w("  Компоненты ( кол-во файлов ):")
+            w(t("mem.files_loaded", n=len(p.files)))
+            w(t("mem.components"))
             for comp, cnt in comp_count.most_common(15):
                 w(f"    {cnt:>4}  {comp}")
 
             # SQL перед крашем
             if p.sql_queries:
                 total_mysql_bytes = sum(q["recv_bytes"] for q in p.sql_queries)
-                w(f"  SQL-запросов: {len(p.sql_queries)}")
-                w(f"  Данные от MySQL: {fmt_bytes(total_mysql_bytes)}")
+                w(t("mem.sql_count", n=len(p.sql_queries)))
+                w(t("mem.mysql_data", size=fmt_bytes(total_mysql_bytes)))
                 # топ запросов по объёму данных
                 queries_with_data = [q for q in p.sql_queries if q["recv_bytes"] > 0]
                 if queries_with_data:
                     queries_sorted = sorted(queries_with_data, key=lambda q: q["recv_bytes"], reverse=True)
-                    w("\n  Топ SQL-запросов по объёму ответа:")
+                    w(t("mem.top_sql"))
                     for q in queries_sorted[:20]:
                         sql_short = q["sql"][:80]
                         w(f"    {fmt_bytes(q['recv_bytes']):>10}  {sql_short}")
                 # все запросы с объёмом
-                w("\n  Все SQL-запросы с объёмом данных:")
+                w(t("mem.all_sql"))
                 for q in p.sql_queries:
                     sql_short = q["sql"][:80]
                     w(f"    {fmt_bytes(q['recv_bytes']):>10}  {sql_short}")
@@ -103,26 +104,28 @@ def report_section(p, w):
             # mmap
             if p.mmap_count > 0:
                 peak_est = p.mmap_total - p.munmap_total
-                w(f"  mmap итого: {fmt_bytes(p.mmap_total)}, munmap: {fmt_bytes(p.munmap_total)}, пик: ~{fmt_bytes(max(peak_est, 0))}")
+                w(t("mem.mmap", total=fmt_bytes(p.mmap_total), freed=fmt_bytes(p.munmap_total),
+                    peak=fmt_bytes(max(peak_est, 0))))
 
             # объём данных от MySQL
             if p.sql_queries:
                 total_mysql_bytes = sum(q["recv_bytes"] for q in p.sql_queries)
                 if total_mysql_bytes > 0:
-                    w(f"  Данные от MySQL: {fmt_bytes(total_mysql_bytes)} ({len(p.sql_queries)} запросов)")
+                    w(t("mem.mysql_data_n", size=fmt_bytes(total_mysql_bytes),
+                        n=len(p.sql_queries)))
                     # корневая причина: запрос с максимальным объёмом данных
                     top_q = max(p.sql_queries, key=lambda q: q["recv_bytes"])
                     if top_q["recv_bytes"] > 0:
                         pct = top_q["recv_bytes"] / total_mysql_bytes * 100
-                        w("\n  >>> КОРНЕВАЯ ПРИЧИНА OOM:")
-                        w(f"  Запрос вернул {fmt_bytes(top_q['recv_bytes'])} ({pct:.1f}% всех данных MySQL):")
+                        w(t("mem.oom_root"))
+                        w(t("mem.oom_query", size=fmt_bytes(top_q["recv_bytes"]), pct=pct))
                         w(f"  {top_q['sql']}")
                         if top_q["recv_bytes"] > 100 * 1024 * 1024:
-                            w("  Этот ОДИН запрос загрузил > 100MB данных в память PHP.")
+                            w(t("mem.oom_one"))
 
             enomem = p.errno_counter.get("ENOMEM", 0)
             if enomem > 0:
-                w(f"  ENOMEM (mmap отказал): {enomem}")
+                w(t("mem.enomem", n=enomem))
 
         if p.php_fatal_errors and not p.oom_detected:
             for ts, msg, _fname, _line in p.php_fatal_errors:

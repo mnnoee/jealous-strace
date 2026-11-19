@@ -4,10 +4,11 @@ import csv
 import os
 
 from . import constants as ct
+from . import smtp
 
 try:
     from . import phpmail
-except Exception:  # pragma: no cover
+except Exception:
     phpmail = None
 
 
@@ -107,6 +108,9 @@ def write_csvs(p, outdir):
     # mail.csv (PHP mail)
     if phpmail is not None:
         phpmail.write_csv(p, outdir)
+
+    # smtp.csv
+    smtp.write_csv(p, outdir)
 
     # access.csv
     if p.access_entries:

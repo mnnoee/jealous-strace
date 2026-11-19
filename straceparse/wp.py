@@ -1,8 +1,10 @@
-"""Диагностика WordPress: компоненты, ядро, тема, версии PHP/WP, тяжёлые плагины."""
+"""Диагностика WordPress компоненты, ядро, тема, версии PHP/WP, тяжёлые плагины."""
+# Переработать
 
 import re
 from collections import defaultdict
 
+from .i18n import plural_word, t
 from .parse_utils import fmt_bytes
 
 
@@ -103,27 +105,27 @@ def diagnose(p):
 
     # --- 1. Критические ядро-файлы WP ---
     critical_core = {
-        "wp-blog-header.php": "точка входа WP (загружает wp-load.php)",
-        "wp-load.php": "загрузчик WP (подключает wp-config.php)",
-        "wp-config.php": "конфигурация (БД, ключи)",
-        "wp-settings.php": "настройки окружения WP",
-        "wp-includes/load.php": "базовые функции загрузки",
-        "wp-includes/functions.php": "основной API",
-        "wp-includes/plugin.php": "система хуков",
-        "wp-includes/class-wp.php": "класс WP (роутинг)",
-        "wp-includes/query.php": "WP_Query",
-        "wp-includes/post.php": "работа с постами",
-        "wp-includes/theme.php": "API тем",
-        "wp-includes/template.php": "загрузка шаблонов",
-        "wp-includes/user.php": "пользователи",
-        "wp-includes/meta.php": "метаданные",
-        "wp-includes/rewrite.php": "permalink-структура",
-        "wp-includes/comment.php": "комментарии",
-        "wp-includes/option.php": "API опций",
-        "wp-includes/formatting.php": "форматирование",
-        "wp-includes/capabilities.php": "роли и права",
-        "wp-includes/taxonomy.php": "таксономии",
-        "wp-includes/class-wp-error.php": "обработка ошибок",
+        "wp-blog-header.php": t("wp.desc.blog_header"),
+        "wp-load.php": t("wp.desc.load"),
+        "wp-config.php": t("wp.desc.config"),
+        "wp-settings.php": t("wp.desc.settings"),
+        "wp-includes/load.php": t("wp.desc.includes_load"),
+        "wp-includes/functions.php": t("wp.desc.includes_functions"),
+        "wp-includes/plugin.php": t("wp.desc.includes_plugin"),
+        "wp-includes/class-wp.php": t("wp.desc.includes_class_wp"),
+        "wp-includes/query.php": t("wp.desc.includes_query"),
+        "wp-includes/post.php": t("wp.desc.includes_post"),
+        "wp-includes/theme.php": t("wp.desc.includes_theme"),
+        "wp-includes/template.php": t("wp.desc.includes_template"),
+        "wp-includes/user.php": t("wp.desc.includes_user"),
+        "wp-includes/meta.php": t("wp.desc.includes_meta"),
+        "wp-includes/rewrite.php": t("wp.desc.includes_rewrite"),
+        "wp-includes/comment.php": t("wp.desc.includes_comment"),
+        "wp-includes/option.php": t("wp.desc.includes_option"),
+        "wp-includes/formatting.php": t("wp.desc.includes_formatting"),
+        "wp-includes/capabilities.php": t("wp.desc.includes_capabilities"),
+        "wp-includes/taxonomy.php": t("wp.desc.includes_taxonomy"),
+        "wp-includes/class-wp-error.php": t("wp.desc.includes_class_wp_error"),
     }
 
     missing_core = []
@@ -134,54 +136,54 @@ def diagnose(p):
         # также проверяем по потерям в access/openat
         elif not any(path.endswith("/" + fname) or path.endswith("\\" + fname) for path in p.files):
             if not any(path.endswith("/" + fname) or path.endswith("\\" + fname) for path in p.open_missing):
-                # файл вообще не упоминался — возможно, не добрались
+                # файл вообще не упоминался - возможно, не добрались
                 pass
 
     if missing_core:
-        issues.append(("CRITICAL", "Отсутствуют критические файлы ядра WordPress:"))
+        issues.append(("CRITICAL", t("wp.missing_core")))
         for fname, desc in missing_core:
-            issues.append(("CRITICAL", f"  [!] {fname} — {desc}"))
+            issues.append(("CRITICAL", f"  [!] {fname} - {desc}"))
 
     # --- 2. Файлы wp-content ---
     content_checks = {
-        "db.php": "кастомный драйвер БД (drop-in)",
-        "object-cache.php": "кастомный кэш объектов (drop-in)",
-        "advanced-cache.php": "кэширование (drop-in)",
+        "db.php": t("wp.desc.db"),
+        "object-cache.php": t("wp.desc.object_cache"),
+        "advanced-cache.php": t("wp.desc.advanced_cache"),
     }
     missing_content = []
     for fname, desc in content_checks.items():
         if fname in p.open_missing:
             missing_content.append((fname, desc))
     if missing_content:
-        issues.append(("WARNING", "Отсутствуют drop-in файлы wp-content:"))
+        issues.append(("WARNING", t("wp.missing_content")))
         for fname, desc in missing_content:
-            issues.append(("WARNING", f"  [!] {fname} — {desc}"))
+            issues.append(("WARNING", f"  [!] {fname} - {desc}"))
 
     # --- 3. Mu-plugins ---
     if "mu-plugins" in p.open_missing or any("mu-plugins" in path for path in p.open_missing):
-        issues.append(("WARNING", "Отсутствует каталог mu-plugins (mu-плагины не загружены)"))
+        issues.append(("WARNING", t("wp.no_mu")))
 
     # --- 4. Активная тема ---
     if p.wp_active_theme:
         base = (p.wp_abspath or "") + "wp-content/themes/" + p.wp_active_theme + "/"
         # Критические шаблоны темы
         theme_critical = {
-            "index.php": "главный шаблон (fallback для всех запросов)",
-            "functions.php": "функции темы (обязательный при активации)",
-            "style.css": "метаданные темы",
-            "header.php": "шапка страницы",
-            "footer.php": "подвал страницы",
-            "sidebar.php": "боковая панель",
+            "index.php": t("wp.desc.index"),
+            "functions.php": t("wp.desc.functions"),
+            "style.css": t("wp.desc.style"),
+            "header.php": t("wp.desc.header"),
+            "footer.php": t("wp.desc.footer"),
+            "sidebar.php": t("wp.desc.sidebar"),
         }
         # Шаблоны контента
         theme_content = {
-            "front-page.php": "главная страница (статическая)",
-            "home.php": "главная страница (посты)",
-            "single.php": "одиночный пост",
-            "page.php": "статическая страница",
-            "archive.php": "архив",
-            "search.php": "результаты поиска",
-            "404.php": "страница «не найдено»",
+            "front-page.php": t("wp.desc.front_page"),
+            "home.php": t("wp.desc.home"),
+            "single.php": t("wp.desc.single"),
+            "page.php": t("wp.desc.page"),
+            "archive.php": t("wp.desc.archive"),
+            "search.php": t("wp.desc.search"),
+            "404.php": t("wp.desc.404"),
         }
 
         missing_theme = []
@@ -195,9 +197,9 @@ def diagnose(p):
                 missing_theme.append((fname, desc, "ERROR"))
 
         if missing_theme:
-            issues.append(("ERROR", f"Тема «{p.wp_active_theme}» — отсутствуют файлы шаблонов:"))
+            issues.append(("ERROR", t("wp.theme_missing", theme=p.wp_active_theme)))
             for fname, desc, sev in missing_theme:
-                issues.append((sev, f"  [!] {fname} — {desc}"))
+                issues.append((sev, f"  [!] {fname} - {desc}"))
 
         # Проверяем есть ли хотя бы один шаблон для вывода
         has_any_template = False
@@ -208,10 +210,9 @@ def diagnose(p):
                 break
         if not has_any_template and p.wp_active_theme:
             issues.append(("CRITICAL",
-                f"Тема «{p.wp_active_theme}» не имеет ни одного шаблона для вывода! "
-                "Страница не может быть отрисована."))
+                t("wp.theme_no_templates", theme=p.wp_active_theme)))
     else:
-        issues.append(("WARNING", "Активная тема не определена (нет обращений к wp-content/themes/)"))
+        issues.append(("WARNING", t("wp.no_theme")))
 
     # --- 5. Версия PHP ---
     if p.wp_php_version_hint:
@@ -219,12 +220,11 @@ def diagnose(p):
             major, minor = map(int, p.wp_php_version_hint.split("."))
             if major < 7:
                 issues.append(("ERROR",
-                    f"PHP {p.wp_php_version_hint} — ЭТО КРИТИЧЕСКИ УСТАРЕВШАЯ ВЕРСИЯ! "
-                    f"PHP {major}.{minor} не поддерживается с {2018 if major == 5 else 2021} года. "
-                    f"Многие плагины и ядро WP требуют PHP 7.4+."))
+                    t("wp.php_old", v=p.wp_php_version_hint, major=major, minor=minor,
+                      year=2018 if major == 5 else 2021)))
             elif major == 7 and minor < 4:
                 issues.append(("WARNING",
-                    f"PHP {p.wp_php_version_hint} — рекомендуется обновить до PHP 7.4+"))
+                    t("wp.php_recommend", v=p.wp_php_version_hint)))
         except (ValueError, AttributeError):
             pass
 
@@ -235,12 +235,9 @@ def diagnose(p):
             major = int(parts[0])
             minor = int(parts[1]) if len(parts) > 1 else 0
             if major < 5 and minor < 8:
-                issues.append(("ERROR",
-                    f"WordPress {p.wp_version} — КРИТИЧЕСКИ УСТАРЕВШАЯ ВЕРСИЯ! "
-                    f"Содержит известные уязвимости. Рекомендуется обновление до 6.x"))
+                issues.append(("ERROR", t("wp.wp_old", v=p.wp_version)))
             elif major < 6:
-                issues.append(("WARNING",
-                    f"WordPress {p.wp_version} — устаревшая версия, рекомендуется обновление"))
+                issues.append(("WARNING", t("wp.wp_outdated", v=p.wp_version)))
         except (ValueError, IndexError):
             pass
 
@@ -252,18 +249,17 @@ def diagnose(p):
         elif "/languages/" in path and path.endswith(".php"):
             missing_lang.append(path)
     if missing_lang:
-        issues.append(("WARNING", f"Отсутствуют языковые файлы ({len(missing_lang)}):"))
+        issues.append(("WARNING", t("wp.missing_lang", n=len(missing_lang))))
         for path in missing_lang[:5]:
             issues.append(("WARNING", f"  [!] {path}"))
         if len(missing_lang) > 5:
-            issues.append(("WARNING", f"  ... и ещё {len(missing_lang) - 5}"))
+            issues.append(("WARNING", t("wp.more", n=len(missing_lang) - 5)))
 
     # --- 8. Общая статистика файлов ---
     total_missing = sum(p.open_missing.values())
     if total_missing > 20:
         issues.append(("WARNING",
-            f"Всего {total_missing} обращений к несуществующим файлам — "
-            "много ENOENT может замедлять загрузку."))
+            t("wp.enoent_many", n=total_missing)))
 
     # --- 9. Страница не отрисована (нет write с HTML) ---
     has_html_output = False
@@ -272,9 +268,7 @@ def diagnose(p):
             has_html_output = True
             break
     if not has_html_output and p.http_requests:
-        issues.append(("CRITICAL",
-            "HTTP-ответ не содержит статуса — страница не сформирована. "
-            "Возможно, PHP-процесс завершился с ошибкой или по таймауту."))
+        issues.append(("CRITICAL", t("wp.no_status")))
 
     p.wp_detected_issues = issues
     return issues
@@ -294,6 +288,7 @@ def report_heavy_plugins(p, w):
         heavy = [(comp, b, plugin_access[comp], len(plugin_files[comp]))
                  for comp, b in plugin_bytes.items() if b > 100_000]
         if heavy:
-            w("\n--- ТЯЖЁЛЫЕ ПЛАГИНЫ (по суммарному чтению) ---")
+            w(t("wp.heavy"))
             for comp, b, acc, fc in sorted(heavy, key=lambda x: -x[1]):
-                w(f"  {fmt_bytes(b):>8}  {comp}  ({acc} обращений, {fc} уникальных файлов)")
+                w(t("wp.heavy_line", size=fmt_bytes(b), comp=comp, acc=acc, files=fc,
+                    acc_word=plural_word(acc, "access"), files_word=plural_word(fc, "file")))

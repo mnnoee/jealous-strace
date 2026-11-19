@@ -4,7 +4,7 @@ import json
 import os
 from collections import Counter
 
-from . import load, wp
+from . import load, smtp, wp
 
 try:
     from . import phpmail
@@ -64,6 +64,7 @@ def build_json(p):
         "wordpress": {},
         "mtls": {},
         "mail": {},
+        "smtp": {},
         "redirect_chains": [],
         "server_timing": {},
     }
@@ -236,6 +237,9 @@ def build_json(p):
         data["mail"] = phpmail.build_json(p)
     else:
         data["mail"] = {"count": 0, "sends": []}
+
+    # SMTP
+    data["smtp"] = smtp.build_json(p)
 
     return data
 

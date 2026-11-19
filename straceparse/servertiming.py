@@ -1,12 +1,8 @@
-"""Разбивка времени WordPress по фазам из заголовка Server-Timing.
-
-WordPress (плагин Server-Timing) добавляет в ответ заголовок вида:
-    Server-Timing: wp-before-template;dur=1169.49, wp-template;dur=230.07,
-                   wp-total;dur=1399.55
-Показываем фазы по каждому медленному запросу и агрегат по фазам.
-"""
+"""Разбивка времени WordPress по фазам из заголовка Server-Timing"""
 
 import statistics
+
+from .i18n import plural_word, t
 
 # длительности < порога считаем «быстрыми» и в секцию не выводим (шум)
 SLOW_REQ_DUR = 1.0
@@ -34,15 +30,15 @@ def report_section(p, w):
     if not items:
         return
 
-    w("\n--- ФАЗЫ ЗАПРОСОВ (Server-Timing) ---")
+    w(t("st.title"))
 
     slow = [r for r, _ in items if (_req_dur(r) or 0) >= SLOW_REQ_DUR]
     if slow:
-        w(f"\nМедленные запросы (> {SLOW_REQ_DUR:.0f}s) с разбивкой фаз:")
+        w(t("st.slow", secs=SLOW_REQ_DUR))
         for r in slow[:10]:
             phases = dict(r.get("server_timing") or [])
             dur = _req_dur(r) or 0.0
-            parts = "  ".join(f"{n}={v:.1f}мс" for n, v in phases.items())
+            parts = "  ".join(f"{n}={v:.1f}{t('st.ms')}" for n, v in phases.items())
             w(f"  {dur:>6.2f}s {r.get('method', '?')} {r.get('uri')}  [{parts}]")
 
     # агрегат по фазам
@@ -53,16 +49,16 @@ def report_section(p, w):
                 continue
             phase_vals.setdefault(name, []).append(v)
     if phase_vals:
-        w("\nАгрегат фаз по запросам (медиана, мс):")
+        w(t("st.aggregate"))
         for name, vals in sorted(phase_vals.items(), key=lambda kv: -statistics.median(kv[1])):
             med = statistics.median(vals)
             total = sum(vals)
-            w(f"  {name:<24} медиана={med:>9.1f}мс   сумма={total:>10.1f}мс "
-              f"({len(vals)} {'запросов' if len(vals) > 1 else 'запрос'})")
+            w(t("st.line", name=name, med=med, total=total, n=len(vals),
+                word=plural_word(len(vals), "request")))
         top = max(phase_vals.items(), key=lambda kv: statistics.median(kv[1]))[0]
-        w(f"\n  БОЛЬШЕ ВСЕГО ВРЕМЕНИ — фаза «{top}» (медианная длительность по запросам).")
+        w(t("st.most", top=top))
 
     totals = [v for r, phases in items for name, v in phases.items() if name == "wp-total"]
     if totals:
-        w(f"\n  wp-total: медиана={statistics.median(totals):.1f}мс "
-          f"p95={sorted(totals)[min(len(totals) - 1, int(len(totals) * 0.95))]:.1f}мс (render всего ответа)")
+        w(t("st.total", med=statistics.median(totals),
+            p95=sorted(totals)[min(len(totals) - 1, int(len(totals) * 0.95))]))

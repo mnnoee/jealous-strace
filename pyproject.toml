@@ -19,6 +19,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Natural Language :: English",
     "Natural Language :: Russian",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
@@ -46,7 +47,7 @@ Changelog = "https://github.com/mnnoee/jealous-strace/blob/master/CHANGELOG.md"
 jealous-strace = "straceparse.cli:main"
 jealous-sanitize = "straceparse.sanitize:main"
 
-# Версия берётся из straceparse.constants.VERSION — единственный источник истины.
+# Версия берётся из straceparse.constants.VERSION - единственный источник истины.
 # constants.py читается статически (ast), поэтому версия не требует импорта пакета
 # во время сборки. __init__.py реэкспортирует её как __version__ для пользователей API.
 [tool.setuptools.dynamic]
@@ -54,7 +55,7 @@ version = { attr = "straceparse.constants.VERSION" }
 
 # Плоский layout (без src/): дашборд Jealous Moon запускает
 # strace_parser.py напрямую из корня репозитория, поэтому пакет
-# обязан лежать рядом с ним. sanitize_log — отдельный top-level модуль
+# обязан лежать рядом с ним. sanitize_log - отдельный top-level модуль
 # (тонкая обёртка straceparse/sanitize.py остаётся в пакете).
 [tool.setuptools]
 py-modules = ["sanitize_log"]
@@ -74,6 +75,6 @@ select = ["E", "F", "W", "I", "UP", "B"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-# Тестовые фикстуры — это сырые тексты логов/ответов, верстка там произвольная.
+# Тестовые фикстуры - это сырые тексты логов/ответов, верстка там произвольная.
 # E402: тесты вставляют путь к пакету в sys.path перед импортами.
 "tests/*" = ["E501", "E402"]

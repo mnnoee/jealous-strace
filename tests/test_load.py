@@ -66,7 +66,7 @@ class PerRequestTest(unittest.TestCase):
 
     def test_attributes_window_events(self):
         evs = [
-            _ev(1, _dt(0), "accept", 1.0),        # до окна/приём — исключается
+            _ev(1, _dt(0), "accept", 1.0),        # до окна/приём - исключается
             _ev(1, _dt(1.5), "read", 0.1),
             _ev(1, _dt(2.0), "sendto", 0.05),     # SQL-запрос
             _ev(1, _dt(2.5), "writev", 0.2),

@@ -1,11 +1,7 @@
-"""Тайминг SQL-запросов и детект N+1 (повторяющиеся запросы).
-
-Длительность запроса (приблизительная) = время между отправкой запроса
-(start_ts) и получением ответа (end_ts). end_ts берётся из recv на том же
-MySQL-сокете либо из времени следующего запроса на этом сокете.
-"""
+"""Тайминг SQL-запросов и детект N+1"""
 
 
+from .i18n import plural_word, t
 from .parse_utils import fmt_bytes, normalize_sql
 
 
@@ -61,11 +57,7 @@ def uri_for_query(p, q):
 
 
 def find_n_plus_1(p, min_repeats=10):
-    """Находит конвейеры повтора одной нормализованной формы SQL (N+1).
-
-    Сортируем запросы по времени и ищем последовательные серии одной формы
-    длиной >= min_repeats. Каждая серия — подозрение на цикл по строкам.
-    """
+    """Находит конвейеры повтора одной нормализованной формы SQL (N+1)"""
     rows = sorted((q for q in p.sql_queries if q.get("start_ts") is not None),
                   key=lambda q: q["start_ts"])
     runs = []
@@ -110,34 +102,31 @@ def _fmt_ts(ts):
 
 
 def report_section(p, w):
-    """Секция отчёта: тайминг SQL + N+1."""
     durs = [d for d, _ in timed_queries(p)]
     n1 = find_n_plus_1(p)
     if not durs and not n1:
         return
 
-    w("\n--- SQL: ТАЙМИНГ И ПОВТОРЫ (N+1) ---")
+    w(t("sqlt.title"))
 
     if durs:
         pct = percentiles(durs)
-        w(f"Запросов с известной длительностью: {len(durs)}")
-        w(f"Перцентили: p50={pct.get(50, 0) * 1000:.1f}мс  "
-          f"p95={pct.get(95, 0) * 1000:.1f}мс  "
-          f"p99={pct.get(99, 0) * 1000:.1f}мс")
-        w("\nТоп медленных SQL (по длительности):")
+        w(t("sqlt.known", n=len(durs)))
+        w(t("sqlt.pct", p50=pct.get(50, 0) * 1000,
+            p95=pct.get(95, 0) * 1000, p99=pct.get(99, 0) * 1000))
+        w(t("sqlt.slow"))
         for d, q in timed_queries(p)[:15]:
             uri = uri_for_query(p, q)
             uri_s = f"  uri={uri}" if uri else ""
-            # payload из php-fpm (FastCGI) содержит переводы строк — схлопываем в одну строку
             one_line = ' '.join(q.get('sql', '').split())[:90]
-            w(f"  {d * 1000:>9.1f}мс pid={q.get('pid')} {one_line}{uri_s}")
+            w(f"  {d * 1000:>9.1f}{t('sqlt.ms')} pid={q.get('pid')} {one_line}{uri_s}")
 
     if n1:
-        w(f"\n[!] ПОВТОРЯЮЩИЕСЯ ЗАПРОСЫ (N+1) — один запрос в цикле ({len(n1)} кандидатов):")
+        w(t("sqlt.n1", n=len(n1), word=plural_word(len(n1), "candidate")))
         for item in n1[:15]:
             ts_s = f"{_fmt_ts(item['start_ts'])}->{_fmt_ts(item['end_ts'])}" if item["start_ts"] else "?"
-            dur_s = f"  интервал={item['total_sec']:.1f}s" if item["total_sec"] is not None else ""
-            bytes_s = f"  данные={fmt_bytes(item['recv_bytes'])}" if item["recv_bytes"] else ""
+            dur_s = t("sqlt.interval", secs=item["total_sec"]) if item["total_sec"] is not None else ""
+            bytes_s = t("sqlt.data", size=fmt_bytes(item["recv_bytes"])) if item["recv_bytes"] else ""
             uri_s = f"  uri={item['uri']}" if item["uri"] else ""
             w(f"  x{item['repeats']:>4}  {item['normalized'][:80]}{dur_s}{bytes_s}{uri_s}")
-            w(f"         время: {ts_s}")
+            w(t("sqlt.time", ts=ts_s))

@@ -1,5 +1,8 @@
+"""Определение письма phpmail"""
 import ast
 import re
+
+from .i18n import t
 
 MAILLOG_RE = re.compile(
     r"mail\(\)\s+on\s+\[(.*?):(\d+)\]:\s*To:\s*(.*?)\s*--\s*Headers:\s*(.*?)\s*--\s*Subject:\s*(.*?)(?:\\n|$)",
@@ -381,10 +384,12 @@ def detect(p):
         script = ""
         if rec.get("script"):
             script = f"{rec['script']}:{rec.get('script_line')}"
-        out.append(("INFO", f"Отправка PHP mail(): To={recipient} Subject={subject[:80]} script={script or '?'}"))
+        out.append(("INFO", t("mail.detected", recipient=recipient,
+                              subject=subject[:80], script=script or "?")))
         code = rec.get("delivery_exit_code")
         if code is not None and code != 0:
-            out.append(("ERROR", f"Неудачная доставка PHP mail() (sendmail exit code {code}): To={recipient} Subject={subject[:80]}"))
+            out.append(("ERROR", t("mail.failed", code=code, recipient=recipient,
+                                  subject=subject[:80])))
         env = rec.get("envelope_sender")
         sender = rec.get("sender")
         if env and sender:
@@ -393,24 +398,25 @@ def detect(p):
             if m:
                 from_addr = m.group(1)
             if env != from_addr:
-                out.append(("WARNING", f"Несовпадение отправителя PHP mail(): envelope={env} vs From={sender}"))
+                out.append(("WARNING", t("mail.mismatch", env=env, sender=sender)))
     if len(sends) >= 5:
-        out.append(("WARNING", f"Массовая отправка PHP mail(): {len(sends)} писем за анализируемый период."))
+        out.append(("WARNING", t("mail.mass", n=len(sends))))
     return out
 
 
 def report_section(p, w):
     _ensure_state(p)
-    w("\n--- PHP mail() / ОТПРАВКА ПОЧТЫ ---")
+    w(t("mail.title"))
     sends = getattr(p, "mail_sends", []) or []
     if not sends:
-        w("  Отправки почты не обнаружены.")
+        w(t("mail.none"))
         if getattr(p, "mail_body", False):
-            w("  Не обнаружено сигнатур.")
+            w(t("mail.none_sigs"))
         w("")
         return
-    w(f"  Обнаружено отправок: {len(sends)}")
-    w(f"  {'Время':<20}{'PID':>8}  {'Получатель':<28}  {'От кого':<26}  {'Тема':<30}")
+    w(t("mail.found", n=len(sends)))
+    w(f"  {t('mail.col_time'):<20}{t('mail.col_pid'):>8}  {t('mail.col_recipient'):<28}  "
+      f"{t('mail.col_sender'):<26}  {t('mail.col_subject'):<30}")
     for rec in sorted(sends, key=lambda r: (r.get("ts") is None, r.get("ts") or __import__("datetime").datetime.min)):
         ts = rec["ts"].strftime("%Y-%m-%d %H:%M:%S") if rec.get("ts") else "?"
         sender = str(rec.get("sender") or "?")
@@ -420,43 +426,43 @@ def report_section(p, w):
         w(f"  {ts:<20}{str(rec.get('parent_pid') or '?'):>8}  "
           f"{str(rec.get('recipient') or '?')[:28]:<28}  {sender[:26]:<26}  {str(rec.get('subject') or '?')[:30]}")
     if any((r.get("envelope_sender") and r.get("sender") and r.get("envelope_sender") != r.get("sender")) for r in sends):
-        w("  * — отправитель From отличается от envelope (-f) sendmail")
+        w(t("mail.from_diff"))
     if not getattr(p, "mail_body", False):
         w("")
         return
     for i, rec in enumerate(sorted(sends, key=lambda r: (r.get("ts") is None, r.get("ts") or __import__("datetime").datetime.min)), 1):
-        w(f"\n  Отправка #{i}:")
+        w(t("mail.sending", i=i))
         ts = rec["ts"].strftime("%Y-%m-%d %H:%M:%S") if rec.get("ts") else "?"
-        w(f"    Время: {ts}")
-        w(f"    PID процесса: {rec.get('parent_pid')}, дочерний (sendmail): {rec.get('child_pid')}")
-        w(f"    Получатель: {rec.get('recipient')}")
-        w(f"    Отправитель (From): {rec.get('sender')}")
-        w(f"    Envelope (-f): {rec.get('envelope_sender')}")
-        w(f"    Тема: {rec.get('subject')}")
-        w(f"    Reply-To: {rec.get('reply_to')}")
-        w(f"    Content-Type: {rec.get('content_type')}")
-        w(f"    X-Mailer: {rec.get('x_mailer')}")
+        w(t("mail.time", v=ts))
+        w(t("mail.pid", pid=rec.get("parent_pid"), child=rec.get("child_pid")))
+        w(t("mail.recipient", v=rec.get("recipient")))
+        w(t("mail.sender", v=rec.get("sender")))
+        w(t("mail.envelope", v=rec.get("envelope_sender")))
+        w(t("mail.subject", v=rec.get("subject")))
+        w(t("mail.reply", v=rec.get("reply_to")))
+        w(t("mail.ctype", v=rec.get("content_type")))
+        w(t("mail.xmailer", v=rec.get("x_mailer")))
         script = rec.get("script")
         if script:
-            w(f"    Скрипт: {script}:{rec.get('script_line')}")
+            w(t("mail.script", v=f"{script}:{rec.get('script_line')}"))
         if rec.get("command"):
-            w(f"    Команда: {rec.get('command')}")
-        w(f"    Статус доставки (exit code sendmail): {rec.get('delivery_exit_code')}")
+            w(t("mail.command", v=rec.get("command")))
+        w(t("mail.delivery", v=rec.get("delivery_exit_code")))
         if rec.get("duration_sec") is not None:
-            w(f"    Длительность: {rec['duration_sec']} с")
-        w(f"    Размер письма: {rec.get('body_size')} байт")
-        w(f"    Источники: {', '.join(rec.get('source') or [])}")
+            w(t("mail.duration", v=rec["duration_sec"]))
+        w(t("mail.size", v=rec.get("body_size")))
+        w(t("mail.sources", v=", ".join(rec.get("source") or [])))
         if getattr(p, "mail_body", False) and rec.get("body"):
-            w("    Тело:")
+            w(t("mail.body"))
             for line in str(rec["body"]).splitlines():
                 w("      " + line)
     sigs = detect(p)
     if sigs:
-        w("\n  Сигнатуры:")
+        w(t("mail.sigs"))
         for sev, msg in sigs:
             w(f"    [{sev}] {msg}")
     else:
-        w("\n  Не обнаружено сигнатур.")
+        w(t("mail.no_sigs"))
     w("")
 
 

@@ -5,9 +5,9 @@
 [![CI](https://github.com/mnnoee/jealous-strace/actions/workflows/ci.yml/badge.svg)](https://github.com/mnnoee/jealous-strace/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)](CHANGELOG.md)
 
-> Часть набора инструментов [Jealous Moon](https://github.com/mnnoee) —
+> Часть набора инструментов [Jealous Moon](https://github.com/mnnoee) -
 > офлайн-диагностики серверов и доменов.
 
 Универсальный парсер strace-логов с человекочитаемым отчётом и CSV-экспортом.
@@ -21,7 +21,7 @@ pip install git+https://github.com/mnnoee/jealous-strace.git
 ```
 
 После установки доступны команды `jealous-strace` и `jealous-sanitize`.
-Можно запускать и без установки — прямо из клона репозитория:
+Можно запускать и без установки - прямо из клона репозитория:
 
 ```bash
 python3 strace_parser.py /path/to/strace.log
@@ -39,7 +39,10 @@ python3 strace_parser.py /path/to/strace.log
 - Тайминг SQL и детект N+1
 - Фазы WordPress из Server-Timing
 - Атрибуция нагрузки: кто потребляет ресурсы (PID / URI / плагины)
+- Анализ отправки почты через PHP `mail()` и SMTP (получатель, тема, статус,
+  TLS/SNI, тело при `--mail-body`)
 - JSON-экспорт (`--json`)
+- Русский и английский интерфейс (`--lang`)
 
 ## Зависимости
 
@@ -82,7 +85,11 @@ jealous-strace log.txt --all          # все модули
 jealous-strace --version              # версия
 ```
 
-Без установки — так же, но через `python3 strace_parser.py`.
+Без установки - так же, но через `python3 strace_parser.py`.
+
+### Язык интерфейса
+
+Язык вывода берётся из локали или задаётся флагом `--lang {auto,ru,en}`.
 
 ### Флаги
 
@@ -92,10 +99,12 @@ jealous-strace --version              # версия
 | `-t, --threshold` | Порог медленных вызовов, сек (по умолчанию: 0.1) |
 | `--top` | Сколько медленных вызовов показать (по умолчанию: 50) |
 | `--no-csv` | Не писать CSV-файлы |
-| `--json [PATH]` | Писать JSON-отчёт: без значения — `report.json` в `outdir` (как раньше), со значением — указанный файл |
+| `--json [PATH]` | Писать JSON-отчёт: без значения - `report.json` в `outdir` (как раньше), со значением - указанный файл |
 | `--wordpress` | Включить анализ для WordPress |
 | `--mtls` | Включить анализ SSL/mTLS (клиентские сертификаты, ошибки SSL-сертификата) |
 | `--all` | Включить все модули |
+| `--mail-body` | Включать тело письма, подробные детали и анализ SMTP (приватные данные) |
+| `--lang auto\|ru\|en` | Язык вывода: `auto` - по локали (по умолчанию), `ru`/`en` - принудительно |
 
 ### Модуль WordPress (`--wordpress`)
 
@@ -113,17 +122,34 @@ jealous-strace --version              # версия
 - Детектит ответ сервера с текстом `SSL certificate error` (сервер отклонил клиентский сертификат)
 - Даёт рекомендации (проверить срок действия сертификата, получить новый, заменить на сервере)
 
+### Анализ почты (PHP mail())
+
+Модуль находит отправку почты через PHP `mail()` и показывает получателя,
+`From`, envelope (`-f`), тему, `Reply-To`, `Content-Type`, `X-Mailer`, скрипт
+и строку вызова, команду sendmail, статус доставки, длительность и размер.
+С флагом `--mail-body` добавляются тело письма и полные детали (приватные
+данные).
+
+Данные берутся из PHP `mail.log`, цепочек `pipe2`/`dup2`/`execve sendmail`
+и `write` в pipe. Анализ включён по умолчанию.
+
+С флагом `--mail-body` также включается анализ SMTP (`smtp.py`): порты
+25/465/587, клиенты PHPMailer/SwiftMailer и другие. Показываются адрес
+сервера, SNI, TLS, объём данных и результат. Для открытого SMTP разбираются
+`MAIL FROM` / `RCPT TO` / `DATA` и коды ответов; на 465 и после STARTTLS
+команды зашифрованы и не видны.
+
 ### Редиректы и сигнатуры
 
-- **Редиректы**: секция «РЕДИРЕКТЫ (HTTP 3xx)» — полный список 3xx с `Location` и
+- **Редиректы**: секция «РЕДИРЕКТЫ (HTTP 3xx)» - полный список 3xx с `Location` и
   восстановление цепочек перенаправлений (`POST /login -> https://…/wp-admin/ -> GET / -> http://…`).
 - **Сигнатуры инцидентов**: автодетект в секции «СИГНАТУРЫ ИНЦИДЕНТОВ»:
-  петля редиректов, смешанные HTTP/HTTPS (локация ведёт в `https`, а запрос пришёл по `http` —
+  петля редиректов, смешанные HTTP/HTTPS (локация ведёт в `https`, а запрос пришёл по `http` -
   классика «админка не открывается»), Secure-cookie по HTTP, шквал ENOENT.
 
-> **Важно:** Сигнатуры — эвристика, а не истина. Совпадение с сигнатурой не
+> **Важно:** Сигнатуры - эвристика, а не истина. Совпадение с сигнатурой не
 > доказывает инцидент: «шквал ENOENT» может быть штатной работой плагина,
-> а смешанный HTTP/HTTPS — осознанной конфигурацией. Прежде чем действовать,
+> а смешанный HTTP/HTTPS - осознанной конфигурацией. Прежде чем действовать,
 > проверьте вручную по контексту лога.
 
 ### Тайминг SQL и N+1
@@ -131,22 +157,22 @@ jealous-strace --version              # версия
 - Приблизительная длительность каждого SQL-запроса (send -> ответ), перцентили p50/p95/p99,
   топ самых медленных запросов с привязкой к URI.
 - Детект **N+1**: одна нормализованная форма выполняется десятки раз подряд в цикле
-  (частый источник CPU — чтение постов/мета по одной записи).
+  (частый источник CPU - чтение постов/мета по одной записи).
 
 > Длительности SQL приблизительные (send -> recv/следующий запрос): при
 > медленном стриминге ответа время завышается. Для ранжирования узких мест
-> годится, для точных цифр — нет.
+> годится, для точных цифр - нет.
 
 ### Фазы WordPress (Server-Timing)
 
 Заголовок `Server-Timing: wp-before-template;dur=…, wp-template;dur=…, wp-total;dur=…`
-из HTTP/FCGI-ответов разбирается в секцию «ФАЗЫ ЗАПРОСОВ» — показывает, где теряется время
+из HTTP/FCGI-ответов разбирается в секцию «ФАЗЫ ЗАПРОСОВ» - показывает, где теряется время
 (bootstrap / тема / шаблон) и какая фаза доминирует.
 
 ### JSON-отчёт (`--json [PATH]`)
 
-Без значения — `report.json` рядом с `report.txt` (в `outdir`), как и раньше.
-Со значением — JSON пишется в указанный файл (единый контракт с
+Без значения - `report.json` рядом с `report.txt` (в `outdir`), как и раньше.
+Со значением - JSON пишется в указанный файл (единый контракт с
 jealous-nginx и jealous-domain):
 
 ```
@@ -156,14 +182,14 @@ python3 strace_parser.py trace.log --json out.json       # указанный ф
 
 Структурированный дамп результатов для дашбордов/алертов: syscalls, files,
 network, dns, sql (+тайминг, N+1), http (+цепочки редиректов),
-server_timing, signatures, mem, wordpress, load.
+server_timing, signatures, mem, wordpress, mail, smtp, load.
 
 ### Кто потребляет ресурсы (нагрузка)
 
 strace не измеряет CPU напрямую, поэтому модуль `load.py` даёт честные оценки:
 
 - **По PID**: число syscall, время в ядре, время в блокирующих ожиданиях
-  (accept/poll/read/recv — это простой, не работа) и `CPU~` = время вне ожиданий
+  (accept/poll/read/recv - это простой, не работа) и `CPU~` = время вне ожиданий
   (пользовательский код = PHP). Ранжирование по `CPU~`.
 - **По HTTP-запросам**: какая страница сколько syscall и CPU-времени съела
   (обрабатывается в рамках окна запроса), топ самых «тяжёлых» URI.
@@ -171,13 +197,13 @@ strace не измеряет CPU напрямую, поэтому модуль `
   нагрузочном запросе (например `wordpress-seo`, `ninja-forms`, `popup-maker`).
 - **Пиковые секунды**: секунды максимальной глобальной активности + топ PID в них.
 
-Пример вывода секции «НАГРУЗКА: КТО ПОТРЕБЛЯЕТ РЕСУРСЫ» —
+Пример вывода секции «НАГРУЗКА: КТО ПОТРЕБЛЯЕТ РЕСУРСЫ» -
 `GET /topograf.php`: 14.9с CPU~ vs 0.18с kernel -> процесс молотил в PHP-коде,
 а не ждал БД/сети.
 
 ## Структура кода (модульная)
 
-Логика вынесена из одного файла в пакет `straceparse/`. `strace_parser.py` — тонкая
+Логика вынесена из одного файла в пакет `straceparse/`. `strace_parser.py` - тонкая
 CLI-обёртка (`from straceparse.cli import main`), все прежние команды работают как раньше.
 
 ```
@@ -193,6 +219,8 @@ straceparse/
   wp.py                     # диагностика WordPress (компоненты, ядро, тема, версии, тяжёлые плагины)
   mem.py                    # RAM/OOM анализ (mmap/munmap, Out of memory, секция отчёта)
   mtls.py                   # SSL/mTLS анализ (сертификаты, SNI, SSL-ошибки, секция отчёта)
+  phpmail.py                # анализ отправки почты PHP mail() (mail.log, sendmail, pipe)
+  smtp.py                   # SMTP-сессии (465/587/25, PHPMailer, TLS/SNI, MAIL FROM/RCPT TO)
   redirects.py              # редиректы (цепочки 3xx, секция отчёта)
   signatures.py             # сигнатуры инцидентов (петли, http/https, secure-cookie, ENOENT)
   sql_timing.py             # тайминг SQL, перцентили, N+1, привязка к URI
@@ -205,7 +233,7 @@ straceparse/
   cli.py                    # process_file(), main()
 tests/                      # юнит-тесты на синтетических данных
 pyproject.toml              # упаковка, версия, pytest, ruff
-.github/workflows/ci.yml    # CI: матрица 3.9–3.13, lint + тесты + smoke
+.github/workflows/ci.yml    # CI: матрица 3.9-3.13, lint + тесты + smoke
 LICENSE / NOTICE            # GPL-3.0-or-later
 CHANGELOG.md                # история изменений
 RELEASING.md                # процесс выпуска версий
@@ -232,20 +260,24 @@ CONTRIBUTING.md             # как участвовать в разработ�
 - Медленные вызовы
 - Стоимость HTTP-запроса
 - Тяжёлые плагины (WP)
+- PHP mail() (отправка почты)
+- SMTP (отправка почты, с `--mail-body`)
 
 ### CSV-файлы
 
-- `syscalls.csv` — статистика по syscall'ам
-- `errors.csv` — ошибки
-- `files.csv` — файловый доступ
-- `network.csv` — подключения
-- `dns.csv` — DNS-запросы
-- `sql.csv` — SQL-запросы
-- `http.csv` — HTTP/FCGI запросы
-- `pids.csv` — по процессам
-- `slow.csv` — медленные вызовы
-- `unfinished.csv` — незавершённые вызовы
-- `access.csv` — access-логи (если есть)
+- `syscalls.csv` - статистика по syscall'ам
+- `errors.csv` - ошибки
+- `files.csv` - файловый доступ
+- `network.csv` - подключения
+- `dns.csv` - DNS-запросы
+- `sql.csv` - SQL-запросы
+- `mail.csv` - отправка почты
+- `smtp.csv` - SMTP-сессии
+- `http.csv` - HTTP/FCGI запросы
+- `pids.csv` - по процессам
+- `slow.csv` - медленные вызовы
+- `unfinished.csv` - незавершённые вызовы
+- `access.csv` - access-логи (если есть)
 
 ## Пример отчёта
 
@@ -264,7 +296,7 @@ SQL/сек:             400
     700 ( 7.0%)  SELECT option_value FROM wp_options WHERE option_name = ...
 
 [!] AUTOLOAD BLOB DETECTED
-    7500 из 10000 запросов (75.0%) — загрузка опций с autoload.
+    7500 из 10000 запросов (75.0%) - загрузка опций с autoload.
 ```
 
 ## Участие в разработке
@@ -273,10 +305,10 @@ SQL/сек:             400
 
 ## Идеи и предложения
 
-Есть идея, чего не хватает в проекте? Открывайте issue — предложения по новым
+Есть идея, чего не хватает в проекте? Открывайте issue - предложения по новым
 секциям отчёта, детектам сигнатур, форматам выгрузки и интеграциям
 приветствуются.
 
 ## Лицензия
 
-GPL-3.0-or-later. Подробности — в [LICENSE](LICENSE) и [NOTICE](NOTICE).
+GPL-3.0-or-later. Подробности - в [LICENSE](LICENSE) и [NOTICE](NOTICE).

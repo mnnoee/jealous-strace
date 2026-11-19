@@ -1,7 +1,9 @@
-"""SSL/mTLS анализ: клиентские сертификаты, SNI из TLS ClientHello, ошибки SSL."""
+"""SSL/mTLS анализ"""
 
 import re
 from collections import defaultdict
+
+from .i18n import t
 
 SNI_TLD_RE = re.compile(rb"[a-z0-9\-]+(?:\.[a-z0-9\-]+)*\.(?:ru|com|net|org|pro|io|xyz|info|site|online|store|shop|biz|su)")
 SSL_ERR_RE = re.compile(r"(SSL certificate error|400 The SSL certificate|client certificate|bad certificate|sslv3 alert)", re.I)
@@ -10,7 +12,7 @@ CA_STORE_RE = re.compile(r"(ca-bundle|cacert|ca-cert|ca_trust|certs/|pki/|certif
 
 
 def record_cert_open(p, pid, ts, path):
-    """Записывает обращение к клиентскому сертификату/ключу (без системных CA)."""
+    """Записывает обращение к клиентскому сертификату/ключу"""
     if not CA_STORE_RE.search(path):
         p.mtls_cert_files[path].append((pid, ts))
     # первый открытый .php после accept = entry script -> URI
@@ -37,9 +39,8 @@ def is_ssl_error(txt):
 
 
 def record_ssl_error(p, pid, ts, txt, filename):
-    """Детект 'The SSL certificate error' (nginx отклонил клиентский сертификат)."""
+    """Детект 'The SSL certificate error'"""
     txt_clean = re.sub(r"<[^>]+>", "", txt)
-    # вырезать читаемое содержимое вокруг ошибки (без мусорных байтов)
     m_frag = re.search(r"(?:HTTP/1\.\d\s+400[^\r\n]*|The SSL certificate|SSL certificate error)[^\n]{0,120}", txt, re.I)
     if m_frag:
         snippet = re.sub(r"[\x00-\x1f]", " ", m_frag.group(0))
@@ -49,7 +50,6 @@ def record_ssl_error(p, pid, ts, txt, filename):
     snippet = re.sub(r"<[^>]*>", " ", snippet)          # HTML-теги
     snippet = snippet.replace("\\r", " ").replace("\\n", " ").replace("\\/", "/")
     snippet = re.sub(r"\s+", " ", snippet).strip()
-    # обрезать по "nginx" (конец ответа), чтобы не тащить хвост
     cut = snippet.lower().rfind("nginx")
     if cut > 0:
         snippet = snippet[:cut + len("nginx")]
@@ -61,7 +61,7 @@ def report_section(p, w):
     """Секция отчёта '--- SSL / mTLS АНАЛИЗ ---'."""
     if not p.mtls:
         return
-    w("\n--- SSL / mTLS АНАЛИЗ ---")
+    w(t("mtls.title"))
     cert_files = {path: evs for path, evs in p.mtls_cert_files.items()}
     ssl_conns = [c for c in p.connects
                  if (c["endpoint"] or {}).get("port") == 443]
@@ -87,25 +87,27 @@ def report_section(p, w):
             if c.get("final_ok") is not False:
                 mtls_conn_pids.add(c["pid"])
 
-        w("Клиентские сертификаты/ключи, прочитанные процессами:")
+        w(t("mtls.cert_files"))
         for path, evs in sorted(cert_files.items(), key=lambda kv: -len(kv[1])):
             pids = sorted(set(pidi for pidi, _ in evs))
             ts = evs[0][1]
-            w(f"  - {path.split('/')[-1]}  [{path.split('/data/')[-1] if '/data/' in path else path}]")
-            w(f"      pid={','.join(map(str, pids))}  обращений={len(evs)}  ts={ts.strftime('%H:%M:%S') if ts else '?'}")
+            w(t("mtls.cert_line", name=path.split("/")[-1],
+                path=path.split("/data/")[-1] if "/data/" in path else path))
+            w(t("mtls.cert_stats", pids=",".join(map(str, pids)), n=len(evs),
+                ts=ts.strftime("%H:%M:%S") if ts else "?"))
 
-        # mTLS-процессы: которые имеют и сертификат, и HTTPS на 443
+        # mTLS-процессы которые имеют и сертификат, и HTTPS на 443
         cert_pids = set(cert_by_pid.keys())
         mtls_pids = sorted(cert_pids & mtls_conn_pids)
         if mtls_pids:
-            w("\nВзаимная TLS (mTLS): процессы с клиентским сертификатом и HTTPS-соединением:")
+            w(t("mtls.mutual"))
             for pidi in mtls_pids:
                 hosts = ", ".join(sorted(host_by_pid.get(pidi, []))) or "?"
                 certs = ", ".join(c.split('/')[-1] for c in cert_by_pid[pidi])
-                w(f"  - pid={pidi}: {hosts}  -> кл.сертификат: {certs}")
+                w(t("mtls.client_cert", pid=pidi, hosts=hosts, certs=certs))
 
         if ssl_conns:
-            # какие 443-соединения привели к SSL-ошибке (ближайший connect по времени до ошибки)
+            # какие 443-соединения привели к SSL-ошибке это ближайший connect по времени до ошибки
             err_conn_idx = set()
             for pidi, ts, _txt, _fname in p.mtls_ssl_errors:
                 best = None
@@ -119,8 +121,9 @@ def report_section(p, w):
                         best = (cts, i)
                 if best:
                     err_conn_idx.add(best[1])
-            w("\nHTTPS-подключения на 443:")
-            w(f"{'IP':<22}{'Хост (SNI)':<28}{'PID':>10}{'Время':>12}{'Итог':>10}")
+            w(t("mtls.https"))
+            w(f"{t('mtls.col_ip'):<22}{t('mtls.col_host'):<28}{t('mtls.col_pid'):>10}"
+              f"{t('mtls.col_time'):>12}{t('mtls.col_result'):>10}")
             for i, c in enumerate(ssl_conns):
                 ep = c["endpoint"] or {}
                 ip = ep.get("ip") or "?"
@@ -131,8 +134,7 @@ def report_section(p, w):
 
     # Ошибки SSL-сертификата
     if p.mtls_ssl_errors:
-        w(f"\n[!!!] ОШИБКИ SSL-СЕРТИФИКАТА ({len(p.mtls_ssl_errors)})")
-        # сопоставить ошибку с её соединением и хостом
+        w(t("mtls.ssl_errors", n=len(p.mtls_ssl_errors)))
         err_to_conn = {}
         for pidi, ts, _txt, _fname in p.mtls_ssl_errors:
             best = None
@@ -155,7 +157,7 @@ def report_section(p, w):
                 fail_host = ", ".join(sorted(host_by_pid.get(pidi, []))) or "?"
             certs = ", ".join(cf.split('/')[-1] for cf in cert_by_pid.get(pidi, [])) or "?"
             w(f"  - pid={pidi} ts={ts.strftime('%H:%M:%S') if ts else '?'} host={fail_host}")
-            w(f"      сертификат: {certs}")
-            w(f"      ответ: {txt}")
+            w(t("mtls.cert", certs=certs))
+            w(t("mtls.response", txt=txt))
     if not cert_files and not p.mtls_ssl_errors:
-        w("  (не обнаружено взаимной TLS-аутентификации)")
+        w(t("mtls.none"))

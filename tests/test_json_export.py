@@ -80,13 +80,13 @@ class BuildJsonTest(unittest.TestCase):
 
 
 class CliJsonTest(unittest.TestCase):
-    """Контракт --json: без значения — report.json в outdir (как раньше),
-    со значением — указанный путь (единый контракт с nginx/domain)."""
+    """Контракт --json: без значения - report.json в outdir (как раньше),
+    со значением - указанный путь (единый контракт с nginx/domain)."""
 
     def _log(self, tmp):
         path = os.path.join(tmp, "trace.log")
         with open(path, "w") as f:
-            f.write("")  # пустой лог — отчёт всё равно пишется
+            f.write("")  # пустой лог - отчёт всё равно пишется
         return path
 
     def test_json_flag_writes_to_outdir(self):

@@ -1,8 +1,4 @@
-"""Сигнатуры инцидентов: автодетект типовых проблем по собранным данным.
-
-Каждая функция-детектор проверяет один паттерн и возвращает список
-(severity, message) — строки добавляются в секцию «КЛЮЧЕВЫЕ ПРОБЛЕМЫ» отчёта.
-"""
+"""Сигнатуры инцидентов"""
 
 from collections import Counter
 
@@ -11,6 +7,8 @@ try:
 except Exception:  # pragma: no cover
     phpmail = None
 
+from . import smtp
+from .i18n import t
 from .redirects import REDIRECT_STATUSES, build_chains
 
 
@@ -46,8 +44,8 @@ def detect_redirect_loop(p):
         if repeated:
             issues.append((
                 "CRITICAL",
-                f"ПЕТЛЯ ПЕРЕПРАВЛЕНИЙ: «{' -> '.join(keys)}» — URI повторяется в цепочке "
-                f"(повтор: {', '.join(sorted(repeated))}). Браузер/клиент зацикливается."
+                t("sig.loop", keys=" -> ".join(keys),
+                  repeated=", ".join(sorted(repeated)))
             ))
     return issues
 
@@ -66,18 +64,13 @@ def detect_repeated_chains(p):
         if cnt >= 2:
             issues.append((
                 "WARNING",
-                f"Цепочка редиректов «{key}» повторяется {cnt} раз подряд — "
-                f"признак зацикленного доступа (например, заход на закрытую страницу)."
+                t("sig.repeated", key=key, n=cnt)
             ))
     return issues
 
 
 def detect_scheme_switch(p):
-    """Редирект из http в https (или наоборот) внутри цепочки.
-
-    Классика: форма логина присылает Location https, а следующий запрос
-    приходит по http — админка «не открывается» (недостижимый https-редирект).
-    """
+    """Редирект из http в https (или наоборот) внутри цепочки"""
     issues = []
     for chain in build_chains(p):
         for prev, nxt in zip(chain, chain[1:]):
@@ -90,15 +83,14 @@ def detect_scheme_switch(p):
             if prev.get("location") and (loc_scheme == "https") != (nxt_scheme == "https"):
                 issues.append((
                     "CRITICAL",
-                    f"СМЕШАННЫЕ HTTP/HTTPS: {prev.get('method', '?')} {prev.get('uri')} -> "
-                    f"Location {prev.get('location')}, а следующий запрос пришёл по {nxt_scheme}. "
-                    f"Редирект в недоступный протокол — страница не открывается."
+                    t("sig.scheme", method=prev.get("method", "?"), uri=prev.get("uri"),
+                      location=prev.get("location"), scheme=nxt_scheme)
                 ))
     return issues
 
 
 def detect_secure_cookie_over_http(p):
-    """Secure-cookie выдаётся по HTTP (без https) — кука не дойдёт обратно."""
+    """Secure-cookie"""
     issues = []
     for r in p.http_requests:
         cookies = r.get("set_cookie") or []
@@ -106,15 +98,14 @@ def detect_secure_cookie_over_http(p):
             if c.get("secure") and _req_scheme(r) != "https":
                 issues.append((
                     "WARNING",
-                    f"Secure-cookie «{c.get('name')}» установлена по HTTP для "
-                    f"{r.get('method', '?')} {r.get('uri')} host={r.get('host')}. "
-                    f"Кука помечена Secure, но соединение не HTTPS — браузер её не вернёт."
+                    t("sig.cookie", name=c.get("name"), method=r.get("method", "?"),
+                      uri=r.get("uri"), host=r.get("host"))
                 ))
     return issues
 
 
 def detect_enoent_storm(p, threshold=200):
-    """Шквал обращений к несуществующим файлам (ENOENT)."""
+    """ENOENT"""
     issues = []
     total = sum(p.open_missing.values())
     if total < threshold:
@@ -123,20 +114,20 @@ def detect_enoent_storm(p, threshold=200):
     sample = ", ".join(f"{path[:60]} (x{n})" for path, n in top)
     issues.append((
         "WARNING",
-        f"Шквал ENOENT: {total} обращений к несуществующим файлам. "
-        f"Топ: {sample}. Обход несуществующих путей грузит диски и файловые кэши."
+        t("sig.enoent", n=total, sample=sample)
     ))
     return issues
 
 
 def detect(p):
-    """Все сигнатуры разом. Возвращает список (severity, message)."""
+    """Все сигнатуры разом. Возвращает список"""
     out = []
     out += detect_redirect_loop(p)
     out += detect_repeated_chains(p)
     out += detect_scheme_switch(p)
     out += detect_secure_cookie_over_http(p)
     out += detect_enoent_storm(p)
+    out += smtp.detect(p)
     if phpmail is not None and getattr(p, "mail_body", False):
         out += phpmail.detect(p)
     return out

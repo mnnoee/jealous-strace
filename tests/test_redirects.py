@@ -70,7 +70,7 @@ class BuildChainsTest(unittest.TestCase):
                          ["/topograf.php", "/wp-admin/", "/"])
 
     def test_isolated_redirect_no_target(self):
-        # 302, но следующий запрос не совпадает с Location — цепочки нет
+        # 302, но следующий запрос не совпадает с Location - цепочки нет
         reqs = [
             _req("GET", "/wp-admin/", 302, "http://xn--80anccitz3fwb.xyz", 0),
             _req("GET", "/somewhere-else", 200, None, 10),

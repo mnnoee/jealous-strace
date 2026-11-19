@@ -99,7 +99,7 @@ class FindNPlus1Test(unittest.TestCase):
         self.assertEqual(find_n_plus_1(p, min_repeats=10), [])
 
     def test_single_form_high_total_is_not_n1(self):
-        # те же формы, но НЕ подряд (вперемешку) — это не N+1
+        # те же формы, но НЕ подряд (вперемешку) - это не N+1
         queries = [
             _q(0, sql=SQL_OPT), _q(1, sql="SELECT * FROM wp_posts WHERE ID = 1"),
             _q(2, sql=SQL_OPT), _q(3, sql="SELECT * FROM wp_posts WHERE ID = 2"),

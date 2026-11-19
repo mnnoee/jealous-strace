@@ -1,96 +1,119 @@
-# Участие в разработке
+# Contributing
 
-## Как предлагать идеи/фичи
+## Proposing ideas and features
 
-Создайте Issue в репозитории с кратким описанием проблемы и желаемого поведения.
+Open an Issue in the repository with a short description of the problem and
+the behaviour you would like to see.
 
-## Как предлагать код
+## Proposing code
 
-Отправьте Pull Request с описанием изменений. До мержа убедитесь, что:
+Send a Pull Request with a description of the changes. Before merging, make
+sure that:
 
 ```bash
-# тесты
+# tests
 python -m pytest
 
-# линтер
+# linter
 ruff check .
 ```
 
-- Код проходит тесты и линтер
-- Описание PR содержит контекст: что было, что стало, зачем
-- Новая фича = новый модуль в `straceparse/` + хук в нужной точке `core`
-  или секция в `report`, а не разрастание существующих файлов
+- The code passes the tests and the linter
+- User-facing strings (output, prompts, help) are added to both catalogs in
+  `straceparse/locales/` (`ru` and `en`) and used in code only via `t()`
+- The PR description provides context such as what it was, what it became and
+  why
+- A new feature means a new module in `straceparse/` plus a hook at the right
+  point in `core` or a section in `report`, not growth of existing files
 
-## Структура проекта
+## Project structure
 
 ```
-strace_parser.py          тонкая CLI-обёртка
-sanitize_log.py           тонкая обёртка санитайзера
+strace_parser.py          thin CLI wrapper
+sanitize_log.py           thin sanitizer wrapper
 straceparse/
-  __init__.py             экспорты: VERSION, StraceParser, build_report, main
-  constants.py            регулярные выражения, RCODE_NAMES, VERSION
-  parse_utils.py          чистые хелперы: unescape, sockaddr, FCGI, DNS,
+  __init__.py             exports: VERSION, StraceParser, build_report, main
+  constants.py            regular expressions, RCODE_NAMES, VERSION
+  i18n.py                 localization engine: locale detection, t(), plurals
+  locales/
+    ru.py                 Russian string catalog
+    en.py                 English string catalog
+  parse_utils.py          pure helpers: unescape, sockaddr, FCGI, DNS,
                           normalize_sql, server_timing, set_cookie
-  core.py                 Syscall + StraceParser: разбор строк, трекинг
-                          fd/сокетов/файлов, feature-хуки wp/mem/mtls
-  wp.py                   WordPress: компоненты, ядро, темы, тяжёлые плагины
-  mem.py                  RAM/OOM анализ
-  mtls.py                 SSL/mTLS анализ
-  redirects.py            редиректы (цепочки 3xx)
-  signatures.py           сигнатуры инцидентов
-  sql_timing.py           тайминг SQL, перцентили, N+1
-  servertiming.py         фазы WP из Server-Timing
-  load.py                 атрибуция нагрузки
-  json_export.py          машиночитаемый report.json (--json)
-  report.py               build_report() по секциям
+  core.py                 Syscall + StraceParser: line parsing, fd/socket/file
+                          tracking, feature hooks wp/mem/mtls/smtp/phpmail
+  wp.py                   WordPress: components, core, themes, heavy plugins
+  mem.py                  RAM/OOM analysis
+  mtls.py                 SSL/mTLS analysis
+  phpmail.py              PHP mail() analysis
+  smtp.py                 SMTP sessions and delivery result
+  redirects.py            redirects (3xx chains)
+  signatures.py           incident signatures
+  sql_timing.py           SQL timing, percentiles, N+1
+  servertiming.py         WordPress phases from Server-Timing
+  load.py                 load attribution
+  json_export.py          machine-readable report.json (--json)
+  report.py               build_report() by sections
   csv_export.py           write_csvs()
-  sanitize.py             маскировка конфиденциальных данных
+  sanitize.py             masking of confidential data
   cli.py                  process_file(), main()
-tests/                    юнит-тесты на синтетических данных
+tests/                    unit tests on synthetic data
 ```
 
-Направление зависимостей одностороннее:
-`core -> (wp, mem, mtls) -> parse_utils/constants` (без циклов).
+The dependency direction is one-way,
+`core -> (wp, mem, mtls, smtp, phpmail) -> parse_utils/constants`, with no
+cycles.
 
-## Важно: конфиденциальность strace-логов
+## Important: strace log privacy
 
-strace-логи содержат всё: хосты, пути, SQL с реальными данными, бизнес-процессы.
-Если PR или Issue включает примеры логов или вывод отчёта, **обязательно**
-перед публикацией:
+strace logs contain everything, including hosts, paths, SQL with real data and
+business processes. If a PR or Issue includes log samples or report output, you
+**must** do the following before publishing:
 
-- замените все реальные хосты/IP/домены на `example.com`, `example.org`, `test.local`
-- замените пути с именами компаний/клиентов на generic-пути (`/path/to/logs/`)
-- уберите содержимое SQL-запросов с реальными названиями таблиц/данных
-  (кроме стандартных `wp_*` таблиц для демонстрации)
-- в идеале — прогоните лог через санитайзер перед вложением в Issue/PR
+- replace all real hosts, IPs and domains with `example.com`, `example.org` or
+  `test.local`
+- replace paths containing company or client names with generic paths
+  (`/path/to/logs/`)
+- remove SQL query contents with real table or data names, except the standard
+  `wp_*` tables used for demonstration
+- ideally, run the log through the sanitizer before attaching it to an Issue or
+  PR
 
-### Автоматическая санитизация
+### Automatic sanitization
 
 ```bash
-# Очистка лога + отчёт о заменах
+# clean the log and print a substitution report
 jealous-sanitize your_strace.log -o clean.log --report
 
-# или без установки
+# or without installation
 python3 sanitize_log.py your_strace.log -o clean.log --report
 ```
 
-### Какие данные маскирует санитайзер
+### What the sanitizer masks
 
-| Тип данных | Пример до | Пример после |
-|------------|-----------|--------------|
+| Data type | Before | After |
+|-----------|--------|-------|
 | IPv4 | `192.168.1.100` | `<IPV4_1>` |
-| Домены | `shop.client.ru` | `<DOMAIN_1>` |
+| IPv6 | `2001:db8::1` | `<IPV6_1>` |
+| Domains | `shop.client.ru` | `<DOMAIN_1>` |
+| Internal hosts | `db.corp.local` | `<DOMAIN_1>` |
 | Email | `dev@acmecorp.ru` | `<EMAIL_1>` |
-| Пути | `/home/clientproject/www/` | `<PATH_1>` |
-| SQL-значения | `WHERE name = 'John'` | `WHERE name <SQL_VAL_1>` |
+| URL-encoded email | `dev%40acmecorp.ru` | `<EMAIL_1>` |
+| Credentials and tokens | `DB_PASSWORD=secret`, `Authorization: Bearer ...` | `<CRED_1>` |
+| Private keys | `-----BEGIN PRIVATE KEY-----` block | `<CRED_1>` |
+| Paths | `/home/clientproject/www/` | `<PATH_1>` |
+| SQL values | `WHERE name = 'John'` | `WHERE name <SQL_VAL_1>` |
+| SQL table names | `FROM acme_orders` | `FROM <SQL_TABLE_1>` |
 | SQL IN (...) | `IN (100, 200)` | `<SQL_IN_1>` |
+| System files | `/etc/passwd`, `/proc/*/environ` content | `<CRED_1>` / `<HOSTS_1>` |
 
-Стандартные WordPress-таблицы (`wp_options`, `wp_posts` и т.д.) **не маскируются**.
+Standard WordPress tables (`wp_options`, `wp_posts` and others) are **not**
+masked.
 
-## Версионирование и релизы
+## Versioning and releases
 
-- SemVer: `MAJOR.MINOR.PATCH`. Источник истины — `VERSION` в
-  `straceparse/constants.py`; `pyproject.toml` читает её автоматически,
-  руками версию нигде дублировать не нужно.
-- Каждое изменение — запись в `CHANGELOG.md` (Keep a Changelog).
-- Релиз: обновить `VERSION` -> запись в CHANGELOG -> тег `vX.Y.Z`.
+- SemVer, `MAJOR.MINOR.PATCH`. The source of truth is `VERSION` in
+  `straceparse/constants.py`; `pyproject.toml` reads it automatically, so the
+  version never needs to be duplicated by hand.
+- Every change gets an entry in `CHANGELOG.md` (Keep a Changelog).
+- Release: update `VERSION` -> add a CHANGELOG entry -> tag `vX.Y.Z`.

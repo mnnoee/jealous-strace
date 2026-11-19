@@ -1,15 +1,11 @@
-"""Ядро: класс Syscall и StraceParser — разбор строк и трекинг состояния.
-
-Feature-модули (wp, mem, mtls) подключаются через функции-хуки,
-НЕ наследуются: они работают с переданным экземпляром StraceParser.
-"""
+"""класс Syscall и StraceParser """
 
 import re
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
 from . import constants as ct
-from . import mem, mtls, phpmail, wp
+from . import mem, mtls, phpmail, smtp, wp
 from .parse_utils import (
     extract_location,
     extract_server_timing,
@@ -51,6 +47,9 @@ class StraceParser:
         self.mail = mail
         self.mail_body = mail_body
         self.mail_sends = []
+        self.smtp_sessions = []
+        self.smtp_current = {}
+        self.smtp_lib = {}
         self._pipe_creators = {}
         self._pipe_child = {}
         self._child_pipe = {}
@@ -105,9 +104,9 @@ class StraceParser:
         self.wp_php_version_hint = None  # из пути (php54, php70 и т.д.)
         self.wp_file_reads = {}      # path -> bytes_read (для определения что реально читалось)
         self.wp_detected_issues = [] # список (severity, message)
-        # --- SSL / mTLS анализ ---
+        # --- SSL / mTLS анализ --- (Это типа вообще появляется ли серт при передаче в стрейсах)
         self.mtls_cert_files = defaultdict(list)  # path -> [(pid, ts)]
-        self.mtls_ssl_errors = []    # (pid, ts, text, filename) — nginx/ssl cert error в данных
+        self.mtls_ssl_errors = []    # (pid, ts, text, filename) - nginx/ssl cert error в данных
         self.mtls_conn_domains = {}  # (ip, port) -> имя хоста из SNI/connect
 
     # -- определение формата строки --
@@ -379,6 +378,8 @@ class StraceParser:
                 # SSL/mTLS: клиентские сертификаты и ключи
                 if self.mtls and re.search(r"\.(pem|crt|cer|key|p12|pfx)$", path, re.I):
                     mtls.record_cert_open(self, pid, ts, path)
+                if self.mail_body:
+                    smtp.record_lib(self, pid, path)
 
         elif name in ("stat", "lstat", "newfstatat", "statx", "access", "faccessat"):
             path_m = re.search(r'"([^"]*)"', args)
@@ -442,15 +443,19 @@ class StraceParser:
                 else:
                     fd_tab[fdnum] = {"type": "sock", "endpoint": endpoint, "kind": "net"}
                 self.conn_state[(pid, fdnum)] = {"endpoint": endpoint, "status": "ok" if ret == "0" else "pending"}
+            if self.mail_body:
+                smtp.record_connect(self, pid, ts, endpoint, ret, errno, fdnum)
 
         elif name == "getsockopt":
             # SO_ERROR: [0] или [EHOSTUNREACH]
-            m = re.search(r"SO_ERROR,\s*\[([^\]]*)\]", args)
+            m = re.search(r"SO_ERROR\b[^,\[]*,\s*\[([^\]]*)\]", args)
             fdnum = self._get_fd_arg(args, pid, name)
             if m:
                 val = m.group(1)
+                if self.mail_body:
+                    smtp.record_so_error(self, pid, fdnum, val)
                 if val == "0":
-                    self.conn_state[(pid, fdnum)]["status"] = "ok"
+                    self.conn_state.setdefault((pid, fdnum), {"endpoint": None})["status"] = "ok"
                     for c in reversed(self.connects):
                         if c["pid"] == pid and c["fd"] == fdnum and c["errno"] == "EINPROGRESS" and not c["resolved"]:
                             c["final_ok"] = True
@@ -466,6 +471,8 @@ class StraceParser:
 
         elif name == "close":
             fdnum = self._get_fd_arg(args, pid, name)
+            if self.mail_body:
+                smtp.record_close(self, pid, fdnum, ts)
             if fdnum in fd_tab:
                 fd_tab.pop(fdnum, None)
                 # финализируем HTTP запрос
@@ -544,6 +551,8 @@ class StraceParser:
 
     def _mark_conn_ok(self, pid, fdnum):
         self.conn_state[(pid, fdnum)]["status"] = "ok"
+        if self.mail_body:
+            smtp.record_so_error(self, pid, fdnum, "0")
         for c in reversed(self.connects):
             if c["pid"] == pid and c["fd"] == fdnum and c["errno"] == "EINPROGRESS" and not c["resolved"]:
                 c["final_ok"] = True
@@ -587,6 +596,8 @@ class StraceParser:
         nbytes = None
         if ret and ret.isdigit():
             nbytes = int(ret)
+        if self.mail_body:
+            smtp.record_read(self, pid, fdnum, data, nbytes, ts)
         if res and res["type"] == "file":
             path = res["path"]
             self.files[path]["read"] += 1
@@ -659,12 +670,14 @@ class StraceParser:
                 phpmail.maybe_record_maillog(self, pid, ts, data, path, filename)
         elif res and res["type"] == "sock" and data:
             key = (pid, fdnum)
+            if self.mail_body:
+                smtp.record_write(self, pid, fdnum, data, nbytes, ts)
             # SSL/mTLS: SNI hostname в TLS ClientHello через write()
             if self.mtls and res.get("kind") == "net" and res.get("endpoint") \
                     and res["endpoint"].get("port") == 443 \
                     and data.startswith(b"\x16\x03"):
                 mtls.maybe_record_sni(self, data, res["endpoint"].get("ip"))
-            # Server-Timing (фазы WP) — заголовок может быть в FCGI-записи без Status
+            # Server-Timing (фазы WP) - заголовок может быть в FCGI-записи без Status
             req0 = self.current_http_by_pid_fd.get(key)
             st = extract_server_timing(data)
             if st and req0:
@@ -708,6 +721,8 @@ class StraceParser:
         for data in strings:
             if not data:
                 continue
+            if self.mail_body:
+                smtp.record_write(self, pid, fdnum, data, None, ts)
             # SSL/mTLS: SNI hostname в TLS ClientHello -> привязать к connect
             if self.mtls and res and res.get("kind") == "net" and res.get("endpoint") \
                     and res["endpoint"].get("port") == 443 and data \
@@ -774,6 +789,8 @@ class StraceParser:
         for data in strings:
             if not data:
                 continue
+            if self.mail_body:
+                smtp.record_read(self, pid, fdnum, data, None, ts)
             if res and res.get("kind") == "dns":
                 rcode = parse_dns_rcode(data)
                 if rcode is not None:

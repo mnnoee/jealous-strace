@@ -1,4 +1,4 @@
-"""Чистые вспомогательные функции парсинга и форматирования (без состояния)."""
+"""Чистые вспомогательные функции парсинга и форматирования"""
 
 import re
 
@@ -61,12 +61,7 @@ def extract_all_strings(args):
 
 
 def strip_fd_token(args):
-    """Отбрасывает syscall-имя и fd-аннотацию `N<...>`, чтобы остались аргументы.
-
-    С `strace -yy` fd декодируется как `4<UNIX:[...],"/path">, "...", N)`,
-    и первая строка в кавычках оказывается путём fd, а не полезной нагрузкой.
-    Возвращает хвост аргументов после fd-токена (сама строка-вызов без имени).
-    """
+    """Отбрасывает syscall-имя и fd-аннотацию `N<...>`, чтобы остались аргументы"""
     if not args:
         return args
     m = re.match(r"^\w+\((\d+)\s*(<[^)]*?>)?\s*,\s*", args)
@@ -147,8 +142,7 @@ def parse_fcgi_params(data):
 
 
 def _header_part(payload):
-    """Вернуть только заголовочную часть ответа (до первой пустой строки),
-    чтобы не ловить 'HTTP/1.1 301' внутри HTML-тела."""
+    """Вернуть только заголовочную часть ответа"""
     txt = payload.decode("utf-8", "replace")
     idx = txt.find("\r\n\r\n")
     if idx != -1:
@@ -160,11 +154,7 @@ def _header_part(payload):
 
 
 def extract_status(payload):
-    """Ищет HTTP-статус в FCGI/HTTP ответе: 'Status: 302' или 'HTTP/1.1 302'.
-
-    Ищем только в заголовках, иначе 'HTTP/1.1 301' внутри HTML-тела
-    даёт ложные срабатывания.
-    """
+    """Ищет HTTP-статус в FCGI/HTTP ответе: 'Status: 302' или 'HTTP/1.1 302'"""
     txt = _header_part(payload)
     m = re.search(r"Status:\s*(\d{3})", txt, re.IGNORECASE)
     if m:
@@ -189,8 +179,6 @@ def looks_like_http_response(payload):
 
 def extract_server_timing(payload):
     """Парсит заголовок Server-Timing (фазы WordPress) из HTTP/FCGI ответа.
-
-    Пример: 'Server-Timing: wp-before-template;dur=1169.49, wp-template;dur=230.07'.
     Возвращает список кортежей (имя_фазы, длительность_мс) или None.
     """
     if not payload:
@@ -212,10 +200,7 @@ def extract_server_timing(payload):
 
 
 def extract_set_cookie(payload):
-    """Извлекает Set-Cookie заголовки из HTTP/FCGI ответа.
-
-    Возвращает список dict: {"name", "value", "flags" (list str), "secure" (bool)}.
-    """
+    """Извлекает Set-Cookie заголовки из HTTP/FCGI ответа"""
     if not payload:
         return []
     txt = payload.decode("utf-8", "replace")
@@ -247,17 +232,14 @@ def extract_set_cookie(payload):
 
 
 def looks_like_dns_payload(payload):
-    # DNS-запрос: первые 12 байт заголовок, потом QNAME
     if len(payload) < 12:
         return False
     return True
 
-
+"""dns"""
 def parse_dns_qname(payload):
-    """Парсит QNAME из DNS-запроса (первые 12 байт заголовок)."""
     if len(payload) < 12:
         return None
-    # формат: ID(2) flags(2) qdcount(2) ancount(2) nscount(2) arcount(2)
     qdcount = (payload[4] << 8) | payload[5]
     if qdcount == 0:
         return None
@@ -278,7 +260,6 @@ def parse_dns_qname(payload):
 
 
 def parse_dns_rcode(payload):
-    """RCODE из DNS-ответа."""
     if len(payload) < 6:
         return None
     flags = (payload[2] << 8) | payload[3]
@@ -288,7 +269,6 @@ def parse_dns_rcode(payload):
 
 
 def parse_ip_port_from_payload_hex(payload):
-    """Пытается извлечь IP:port из payload (для DNS запросов обычно не нужно)."""
     return None
 
 

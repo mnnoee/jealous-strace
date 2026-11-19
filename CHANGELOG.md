@@ -3,18 +3,45 @@
 Все заметные изменения проекта документируются в этом файле.
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
-версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
+версионирование - [Semantic Versioning](https://semver.org/lang/ru/).
 
 ## [Unreleased]
 
-## [1.4.1] — 2026-10-31
+## [1.5.0] - 2026-11-18
+
+### Added
+- Мультиязычный интерфейс: русский и английский вывод. Язык выбирается
+  по локали (`LC_ALL`, `LC_MESSAGES`, `LANG`, `LANGUAGE`).
+  `LC_ALL=C`, `POSIX` и `en_*` дают английский, `ru_*` - русский.
+- Флаг `--lang {auto,ru,en}` для явного выбора языка вывода.
+  `auto` (по умолчанию) берёт язык из локали.
+- Модуль `straceparse/i18n.py` (движок) и каталоги
+  `straceparse/locales/ru.py`, `straceparse/locales/en.py`.
+- Анализ SMTP (`straceparse/smtp.py`, включается с `--mail-body`): сессии на
+  портах 25/465/587, клиенты PHPMailer/SwiftMailer, TLS/SNI, объём
+  данных, `MAIL FROM`/`RCPT TO`/`DATA` и коды ответов для открытого SMTP.
+  Сессии пишутся в JSON (`smtp`) и CSV (`smtp.csv`).
+- Тесты локализации.
+
+### Changed
+- Все сообщения CLI, отчёта и модулей анализа вынесены в каталоги переводов.
+- Локаль без `ru` теперь даёт английский вывод; раньше вывод всегда был русским.
+- Длинные тире заменены на дефисы в текстах интерфейса и документации.
+
+### Fixed
+- Склонение слов по числу учитывает язык.
+- `EINPROGRESS` больше не считается таймаутом после успешного
+  `getsockopt(SO_ERROR)=0` (раньше установленные соединения попадали
+  в «незавершённые»).
+
+## [1.4.1] - 2026-10-31
 
 ### Fixed
 - Корректное отображение времени в HTTP-запросах: момент старта запроса
   берётся как возврат `accept()`, поэтому длительность не включает ожидание
   следующего соединения.
 
-## [1.4.0] — 2026-10-26
+## [1.4.0] - 2026-10-26
 
 ### Added
 - Детекция отправки почты через PHP `mail()` (`straceparse/phpmail.py`,
@@ -34,15 +61,15 @@
 ### Changed
 - Анализ почты включён по умолчанию.
 
-## [1.3.0] — 2026-10-12
+## [1.3.0] - 2026-10-12
 
 ### Added
 - Упаковка проекта: `pyproject.toml` (PEP 621), установка через
   `pip install jealous-strace` и консольные команды `jealous-strace`
   и `jealous-sanitize`.
 - Флаг `--version` в CLI.
-- **`--json [PATH]`**: без значения — `report.json` в `outdir` (прежнее
-  поведение, вызовы дашборда не ломаются); со значением — JSON пишется
+- **`--json [PATH]`**: без значения - `report.json` в `outdir` (прежнее
+  поведение, вызовы дашборда не ломаются); со значением - JSON пишется
   в указанный файл (единый контракт с jealous-nginx и jealous-domain).
 - Лицензия GPL-3.0-or-later (`LICENSE`, `NOTICE`).
 - `CHANGELOG.md`.
@@ -50,8 +77,8 @@
 
 ### Changed
 - `sanitize_log.py` перенесён в пакет как `straceparse/sanitize.py`;
-  на прежнем месте осталась тонкая обёртка — старые вызовы работают.
-- Версия теперь задаётся в одном месте — `straceparse/constants.py`
+  на прежнем месте осталась тонкая обёртка - старые вызовы работают.
+- Версия теперь задаётся в одном месте - `straceparse/constants.py`
   (`VERSION`, формат SemVer `1.3.0`); `__init__.py` реэкспортирует её как
   `__version__`, `pyproject.toml` читает через `[tool.setuptools.dynamic]`.
 - Конфигурация pytest перенесена в `pyproject.toml`.
@@ -59,7 +86,7 @@
 ### Fixed
 - Китайский иероглиф в докстринге `sanitize.py` (артефакт правки).
 
-## [1.2] — 2026-09-03
+## [1.2] - 2026-09-03
 
 ### Added
 - Атрибуция нагрузки (`load.py`): per-PID / per-запрос / per-компонент WP,
@@ -75,11 +102,8 @@
 - RAM/OOM-анализ, SSL/mTLS-анализ (`--mtls`), WordPress-диагностика
   (`--wordpress`).
 
-## [1.1] и ранее
-
-См. историю git.
-
-[Unreleased]: https://github.com/mnnoee/jealous-strace/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/mnnoee/jealous-strace/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/mnnoee/jealous-strace/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/mnnoee/jealous-strace/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/mnnoee/jealous-strace/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/mnnoee/jealous-strace/compare/v1.2...v1.3.0
